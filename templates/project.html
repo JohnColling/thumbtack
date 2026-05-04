@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Thumbtack - Project</title>
+<style>
+:root{--bg:#0B0F19;--surface:#151B27;--surface2:#1E2636;--surface3:#243045;--border:#2A3447;--text:#E2E8F0;--text2:#94A3B8;--primary:#6366F1;--primary-dim:#4F46E5;--success:#22C55E;--error:#EF4444;--warning:#F59E0B;--r:10px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.5;min-height:100vh}
+h2{font-size:1.1rem;margin-bottom:0.8rem;display:flex;align-items:center;gap:0.4rem}
+h2 .count{font-size:0.75rem;color:var(--text2);background:var(--surface2);padding:0.1rem 0.5rem;border-radius:20px}
+.container{max-width:1400px;margin:0 auto;padding:1rem}
+header{display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;padding-bottom:0.8rem;border-bottom:1px solid var(--border)}
+header h1{font-size:1.3rem}header h1 a{color:var(--primary);text-decoration:none}
+header .path{font-size:0.75rem;color:var(--text2);font-family:monospace}
+.btn{background:var(--primary);color:#fff;border:none;padding:0.5rem 1rem;border-radius:var(--r);cursor:pointer;font-size:0.85rem;font-weight:500;transition:background .15s;display:inline-flex;align-items:center;gap:0.3rem}
+.btn:hover{background:var(--primary-dim)}
+.btn2{background:var(--surface2);border:1px solid var(--border);color:var(--text)}.btn2:hover{background:var(--surface3)}
+.btn.small{padding:0.3rem 0.6rem;font-size:0.75rem}
+.btn.danger{background:rgba(239,68,68,.15);color:#FCA5A5;border:1px solid rgba(239,68,68,.3)}.btn.danger:hover{background:rgba(239,68,68,.25)}
+.btn.success{background:rgba(34,197,94,.15);color:#86EFAC;border:1px solid rgba(34,197,94,.3)}.btn.success:hover{background:rgba(34,197,94,.25)}
+.layout{display:grid;grid-template-columns:280px 1fr 300px;gap:1rem}
+@media(max-width:1100px){.layout{grid-template-columns:1fr}}
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:1rem}
+.section{margin-bottom:1.5rem}.section:last-child{margin-bottom:0}
+.file-tree{max-height:50vh;overflow-y:auto;font-size:0.85rem}
+.file-item{display:flex;align-items:center;padding:0.3rem 0.5rem;border-radius:4px;cursor:pointer;gap:0.4rem}
+.file-item:hover{background:var(--surface2)}
+.file-item .icon{width:1.2rem;text-align:center}
+.file-item .name{flex:1;font-family:monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.file-item .actions{opacity:0;transition:opacity .1s}.file-item:hover .actions{opacity:1}
+.agent-grid{display:grid;gap:0.6rem}
+.agent-card{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.7rem}
+.agent-card .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:0.4rem}
+.agent-card .type{font-family:monospace;font-size:0.8rem;color:var(--primary);font-weight:600}
+.agent-card .status{font-size:0.7rem;padding:0.1rem 0.4rem;border-radius:4px;text-transform:uppercase;letter-spacing:0.5px}
+.agent-card .status.idle{background:rgba(148,163,184,.15);color:var(--text2)}
+.agent-card .status.running{background:rgba(99,102,241,.15);color:#A5B4FC}
+.agent-card .status.error{background:rgba(239,68,68,.15);color:#FCA5A5}
+.output{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:0.5rem;font-family:monospace;font-size:0.75rem;max-height:120px;overflow-y:auto;white-space:pre-wrap;word-break:break-word;color:var(--text2)}
+.input-row{display:flex;gap:0.4rem;margin-top:0.4rem}
+.input-row input{flex:1;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.6rem;border-radius:6px;font-size:0.8rem}
+.output-stream:empty::before{content:'Waiting for output...';color:var(--text2);font-style:italic}
+.task-item{display:flex;align-items:center;gap:0.5rem;padding:0.5rem;background:var(--surface2);border-radius:6px;margin-bottom:0.4rem;font-size:0.85rem}
+.task-item .dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.task-item .dot.pending{background:var(--warning)}.task-item .dot.running{background:var(--primary)}.task-item .dot.done{background:var(--success)}
+.task-item .cmd{flex:1;font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.preset-grid{display:grid;grid-template-columns:1fr 1fr;gap:0.4rem}
+.preset-btn{background:var(--surface2);border:1px solid var(--border);color:var(--text2);padding:0.4rem;border-radius:6px;font-size:0.75rem;cursor:pointer;transition:all .15s;text-align:left}
+.preset-btn:hover{background:var(--surface3);color:var(--text);border-color:var(--border)}
+.spawn-form{display:flex;gap:0.5rem;margin-bottom:0.8rem;flex-wrap:wrap}
+.spawn-form select,.spawn-form input{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.6rem;border-radius:6px;font-size:0.85rem}
+.spawn-form input{flex:1;min-width:150px}
+.compare-grid{display:grid;grid-template-columns:1fr 1fr;gap:0.5rem}
+.compare-panel{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.5rem}
+.compare-panel .label{font-size:0.75rem;color:var(--primary);font-weight:600;margin-bottom:0.3rem;text-transform:uppercase}
+.compare-panel .output{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:0.4rem;font-family:monospace;font-size:0.7rem;max-height:100px;overflow-y:auto;white-space:pre-wrap}
+.compare-panel .output:empty::before{content:'Waiting...';color:var(--text2);font-style:italic}
+.err-bar{background:rgba(239,68,68,.1);color:#FCA5A5;padding:0.6rem 1rem;border-radius:6px;margin-bottom:1rem;border:1px solid rgba(239,68,68,.2);display:none}
+.err-bar.vis{display:block}.empty-msg{text-align:center;padding:1.5rem;color:var(--text2);font-size:0.85rem}
+.hide{display:none !important}
+</style>
+</head>
+<body>
+<div class="container">
+<header>
+<div><h1><a href="/">< Thumbtack</a> <span id="pName">...</span></h1><div class="path" id="pPath"></div></div>
+<div style="display:flex;gap:0.5rem;align-items:center">
+<button class="btn success small" onclick="toggleCompare()"><span id="compareBtn">Compare Mode</span></button>
+<button class="btn btn2 small" onclick="showQueue()">Queue Task</button>
+</div>
+</header>
+<div class="err-bar" id="errBar"></div>
+<div class="layout" id="mainLayout">
+
+<!-- LEFT: Files + Tasks -->
+<div class="panel" style="display:flex;flex-direction:column">
+<div class="section"><h2>Files <span class="count" id="fileCount">0</span></h2><div class="file-tree" id="fileTree"><div class="empty-msg">No files</div></div></div>
+<div class="section"><h2>Tasks <span class="count" id="taskCount">0</span></h2><div id="taskList"><div class="empty-msg">No tasks</div></div></div>
+</div>
+
+<!-- CENTER: Agents -->
+<div class="panel">
+<div class="section"><h2>Agents <span class="count" id="agentCount">0</span></h2>
+<div class="spawn-form">
+<select id="agentType"><option value="claude">Claude Code</option><option value="codex">Codex</option><option value="opencode">OpenCode</option><option value="aider">Aider</option><option value="custom">Custom</option></select>
+<input id="cmdInput" placeholder="Custom command (optional)"><button class="btn small" onclick="spawnAgent()">Spawn</button>
+</div>
+<div class="preset-grid"><button class="preset-btn" onclick="quick('Analyze codebase')">Analyze</button><button class="preset-btn" onclick="quick('Find bugs')">Find Bugs</button><button class="preset-btn" onclick="quick('Write tests')">Tests</button><button class="preset-btn" onclick="quick('Refactor')">Refactor</button></div>
+</div>
+<div class="section" id="agentSection"><div id="agentList" class="agent-grid"><div class="empty-msg">No active agents</div></div></div>
+<div class="section hide" id="comparePanel"><h2>Comparison Mode</h2>
+<div class="compare-grid">
+<div class="compare-panel"><div class="label">Claude</div><button class="btn small" onclick="spawnCompare('claude','compareA')">Spawn Claude</button><div class="output" id="compareA"></div></div>
+<div class="compare-panel"><div class="label">Codex</div><button class="btn small" onclick="spawnCompare('codex','compareB')">Spawn Codex</button><div class="output" id="compareB"></div></div>
+</div>
+<div style="display:flex;gap:0.4rem;margin-top:0.5rem"><button class="btn btn2 small" onclick="sendCompare('compareA')">Send to Claude</button><button class="btn btn2 small" onclick="sendCompare('compareB')">Send to Codex</button><button class="btn small" onclick="sendBoth()">Send to Both</button></div>
+<input id="compareInput" placeholder="Comparison command..." style="width:100%;margin-top:0.5rem;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.6rem;border-radius:6px;font-size:0.85rem">
+</div>
+</div>
+
+<!-- RIGHT: Info -->
+<div class="panel">
+<div class="section"><h2>Project Info</h2><p style="font-size:0.85rem;color:var(--text2)" id="pDesc">No description.</p></div>
+<div class="section"><h2>Quick Actions</h2><button class="preset-btn" style="width:100%;margin-bottom:0.4rem" onclick="quickSend('git status')">Git Status</button><button class="preset-btn" style="width:100%;margin-bottom:0.4rem" onclick="quickSend('git diff --stat')">Git Diff</button><button class="preset-btn" style="width:100%" onclick="quickSend('ls -la')">List Files</button></div>
+</div>
+</div>
+</div>
+
+<script>
+const pid={{project_id}};
+let project={},agents={},sockets={},compareAgents={};
+const $=s=>document.querySelector(s);
+function err(msg){const e=$('#errBar');e.textContent=msg;e.classList.add('vis');setTimeout(()=>e.classList.remove('vis'),4000)}
+function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+
+async function load(){
+  try{
+    const res=await fetch(`/api/projects/${pid}`);if(!res.ok)throw new Error('Not found');
+    project=await res.json();$('#pName').textContent=project.name;$('#pPath').textContent=project.path;
+    $('#pDesc').textContent=project.description||'No description.';
+    $('#agentCount').textContent=project.agents?.length??0;
+    $('#fileCount').textContent=project.files?.length??0;
+    $('#taskCount').textContent=project.tasks?.length??0;
+    renderFiles(project.files||[]);renderAgents(project.agents||[]);renderTasks(project.tasks||[]);
+    project.agents?.forEach(a=>{if(a.status==='running')connect(a.id)});
+  }catch(e){err('Load failed: '+e.message)}
+}
+function renderFiles(files){
+  const tree=$('#fileTree');if(!files.length){tree.innerHTML='<div class="empty-msg">No files</div>';return}
+  tree.innerHTML=files.map(f=>`<div class="file-item"><span class="icon">${f.is_dir?'Folder':'File'}</span><span class="name" title="${esc(f.path)}">${esc(f.name)}</span><span class="actions"><button class="btn small" onclick="event.stopPropagation();editFile('${esc(f.path')}')">Edit</button></span></div>`).join('');
+}
+function renderAgents(list){
+  const c=$('#agentList');if(!list.length){c.innerHTML='<div class="empty-msg">No active agents</div>';return}
+  c.innerHTML=list.map(a=>`<div class="agent-card" id="agent-${a.id}"><div class="header"><span class="type">${esc(a.agent_type)}</span><span class="status ${esc(a.status)}">${esc(a.status)}</span></div><div class="output output-stream" id="out-${a.id}"></div><div class="input-row"><input placeholder="Send command..." onkeydown="if(event.key==='Enter')send(${a.id},this)"><button class="btn small" onclick="send(${a.id},this.previousElementSibling)">Send</button><button class="btn small danger" onclick="kill(${a.id})">Kill</button></div></div>`).join('');
+  list.forEach(a=>agents[a.id]=a);
+}
+function renderTasks(list){
+  const c=$('#taskList');if(!list.length){c.innerHTML='<div class="empty-msg">No tasks</div>';return}
+  c.innerHTML=list.map(t=>`<div class="task-item"><span class="dot ${esc(t.status)}"></span><span class="cmd">${esc(t.command)}</span></div>`).join('');
+}
+function connect(aid){
+  if(sockets[aid])return;const ws=new WebSocket(`ws://${location.host}/ws/agent/${aid}`);
+  ws.onmessage=e=>{const d=JSON.parse(e.data);if(d.type==='output'){const el=$(`#out-${aid}`);if(el){el.textContent+=d.line;el.scrollTop=el.scrollHeight}}}
+  ws.onclose=()=>delete sockets[aid];sockets[aid]=ws;
+}
+async function spawnAgent(){
+  const t=$('#agentType').value,c=$('#cmdInput').value.trim()||null;
+  try{
+    const res=await fetch('/api/agents',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({project_id:pid,agent_type:t,command:c})});
+    if(!res.ok)throw new Error(await res.text());const a=await res.json();agents[a.id]=a;await load();connect(a.id);
+  }catch(e){err('Spawn failed: '+e.message)}
+}
+async function send(aid,el){const cmd=el.value.trim();if(!cmd)return;el.value='';try{await fetch(`/api/agents/${aid}/command`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({agent_id:aid,command:cmd})})}catch(e){err(e.message)}}
+async function kill(aid){try{await fetch(`/api/agents/${aid}`,{method:'DELETE'});if(sockets[aid]){sockets[aid].close();delete sockets[aid]}delete agents[aid];await load()}catch(e){err(e.message)}}
+async function queueTask(){const cmd=prompt('Command to queue:');if(!cmd)return;try{await fetch(`/api/projects/${pid}/tasks`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({command:cmd})});await load()}catch(e){err(e.message)}}
+function quick(cmd){Object.keys(agents).forEach(aid=>{if(agents[aid].status==='running')sendDirect(aid,cmd)})}
+async function sendDirect(aid,cmd){try{await fetch(`/api/agents/${aid}/command`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({agent_id:parseInt(aid),command:cmd})})}catch(e){err(e.message)}}
+function quickSend(cmd){quick(cmd)}
+function toggleCompare(){const p=$('#comparePanel'),b=$('#compareBtn');p.classList.toggle('hide');b.textContent=p.classList.contains('hide')?'Compare Mode':'Exit Compare'}
+async function spawnCompare(type,outId){try{const res=await fetch('/api/agents',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({project_id:pid,agent_type:type})});if(!res.ok)throw new Error(await res.text());const a=await res.json();compareAgents[outId]=a.id;$(`#${outId}`).textContent='Agent #'+a.id+' started\n';connect(a.id)}catch(e){err(e.message)}}
+async function sendCompare(outId){const cmd=$('#compareInput').value.trim();if(!cmd)return;const aid=compareAgents[outId];if(!aid){err('Spawn agent first');return}$('#compareInput').value='';try{await fetch(`/api/agents/${aid}/command`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({agent_id:aid,command:cmd})});$(`#${outId}`).textContent+=`>>> ${cmd}\n`}catch(e){err(e.message)}}
+async function sendBoth(){const cmd=$('#compareInput').value.trim();if(!cmd)return;$('#compareInput').value='';for(const[oid,aid]of Object.entries(compareAgents)){try{await fetch(`/api/agents/${aid}/command`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({agent_id:aid,command:cmd})});$(`#${oid}`).textContent+=`>>> ${cmd}\n`}catch(e){err(e.message)}}}
+function showQueue(){queueTask()}function editFile(p){quickSend(`Edit ${p}`)}
+load();setInterval(load,5000);
+</script>
+</body>
+</html>
