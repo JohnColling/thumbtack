@@ -654,9 +654,41 @@ async def git_pull(pid: int, data: dict = None):
     err = result.stderr.strip() or result.stdout.strip()
     raise HTTPException(400, err or "Pull failed")
 
+@app.get("/api/projects/{pid}/git/log")
+async def git_log(pid: int, limit: int = Query(50)):
+    proj = await get_project(pid)
+    path = proj["path"]
+    if not os.path.isdir(os.path.join(path, ".git")):
+        raise HTTPException(400, "Not a git repository")
+    result = subprocess.run(
+        ["git", "log", f"--max-count={limit}", "--date=iso", "--pretty=format:%H|%h|%an|%ae|%ad|%s"],
+        cwd=path, capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        return {"commits": []}
+    commits = []
+    if result.stdout.strip():
+        for ln in result.stdout.strip().split("\n"):
+            parts = ln.split("|", 5)
+            if len(parts) == 6:
+                commits.append({
+                    "hash": parts[0],
+                    "short_hash": parts[1],
+                    "author": parts[2],
+                    "email": parts[3],
+                    "date": parts[4],
+                    "message": parts[5]
+                })
+    return {"commits": commits}
+
 # ─── Health ────────────────────────────────────────────────────────────
 @app.get("/api/health")
 async def health(): return {"status":"ok","agents":len(ACTIVE)}
+
+# Catch-all SPA redirect
+@app.get("/{path:path}", response_class=HTMLResponse)
+async def spa_catchall(r: Request, path: str):
+    return templates.TemplateResponse(r, "index.html")
 
 # ─── Init ──────────────────────────────────────────────────────────────
 init_db()

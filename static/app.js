@@ -325,6 +325,7 @@ function switchTab(tab){
     $$('.tab-content').forEach(t=>t.classList.toggle('active',t.id===`tab-${tab}`));
     if(tab === 'git' && currentProject){
         loadGitStatus();
+        loadGitLog();
     }
 }
 
@@ -371,6 +372,7 @@ async function loadGitStatus(){
         sb.innerHTML = branchBadge + cleanBadge + `<span style="color:var(--fg-dim);font-size:12px">${countTxt}</span>`;
         renderGitPanel();
         loadGitHubRemoteStatus();
+        loadGitLog();  // Also refresh commit history when status changes
     }catch(e){
         sb.innerHTML = `<span style="color:var(--accent4)">Error loading git status</span>`;
         panel.innerHTML = `<p style="color:var(--accent4);padding:20px">${escapeHtml(e.message||'Failed to load git status')}</p>`;
@@ -461,6 +463,60 @@ async function gitCommit(){
         gitDiffCache = {};
         await loadGitStatus();
     }catch(e){ showToast('Commit failed: '+e.message,'error'); }
+}
+
+// ─── GitHub Integration ───
+
+// ─── Git Log / History ───
+let gitLogCache = [];
+
+async function loadGitLog(){
+    if(!currentProject) return;
+    const container = $('#gitLogContainer');
+    const section = $('#gitHistorySection');
+    if(!container || !section) return;
+    // Show section only if repo exists; render loading state
+    if(!gitState.repo_exists){
+        section.style.display = 'none';
+        return;
+    }
+    section.style.display = 'block';
+    container.innerHTML = '<p style="color:var(--fg-dim);font-size:13px;padding:20px 0;text-align:center">Loading history...</p>';
+    try{
+        const data = await api(`/api/projects/${currentProject.id}/git/log?limit=50`);
+        gitLogCache = data.commits || [];
+        renderGitLog();
+    }catch(e){
+        container.innerHTML = '<p style="color:var(--accent4);font-size:13px;padding:20px 0;text-align:center">Failed to load history</p>';
+    }
+}
+
+function renderGitLog(){
+    const container = $('#gitLogContainer');
+    if(!container) return;
+    if(!gitLogCache.length){
+        container.innerHTML = '<p style="color:var(--fg-dim);font-size:13px;padding:20px 0;text-align:center">No commits yet.</p>';
+        return;
+    }
+    const html = gitLogCache.map((c, i) => {
+        const dateStr = c.date ? new Date(c.date).toLocaleString(undefined, {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}) : '';
+        const isLast = i === gitLogCache.length - 1;
+        return `<div class="git-log-item">
+            <div class="git-log-graph">
+                <div class="git-log-dot"></div>
+                ${!isLast ? '<div class="git-log-line"></div>' : ''}
+            </div>
+            <div class="git-log-body">
+                <div class="git-log-message">${escapeHtml(c.message)}</div>
+                <div class="git-log-meta">
+                    <span class="git-log-hash">${escapeHtml(c.short_hash)}</span>
+                    <span class="git-log-author">${escapeHtml(c.author)}</span>
+                    <span class="git-log-date">${escapeHtml(dateStr)}</span>
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+    container.innerHTML = html;
 }
 
 // ─── GitHub Integration ───
@@ -668,3 +724,5 @@ window.toggleGitDiff=toggleGitDiff;
 window.loadGitStatus=loadGitStatus;
 window.gitCommit=gitCommit;
 window.gitInit=gitInit;
+window.loadGitLog=loadGitLog;
+window.renderGitLog=renderGitLog;

@@ -801,7 +801,20 @@
         .git-diff-box .diff-add { color: #3fb950; }
         .git-diff-box .diff-rem { color: #f85149; }
         .git-diff-box .diff-hdr { color: var(--fg-dim); font-weight: 600; }
-
+        /* Git commit log */
+        .git-log-container { display: flex; flex-direction: column; gap: 12px; }
+        .git-log-item { display: flex; gap: 8px; padding: 8px 10px; border-radius: 6px; background: var(--bg1); border: 1px solid var(--border); transition: background 0.15s; }
+        .git-log-item:hover { background: var(--bg2); }
+        .git-log-graph { display: flex; flex-direction: column; align-items: center; width: 20px; gap: 2px; }
+        .git-log-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 5px rgba(255,127,0,0.4); }
+        .git-log-line { width: 2px; flex: 1; background: var(--bg3); }
+        .git-log-body { flex: 1; min-width: 0; }
+        .git-log-message { font-size: 13px; font-weight: 500; color: var(--fg); margin-bottom: 3px; word-break: break-word; }
+        .git-log-meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 11px; color: var(--fg-dim); }
+        .git-log-hash { font-family: 'SF Mono', monospace; background: var(--bg0); padding: 1px 6px; border-radius: 4px; }
+        .git-log-author { color: var(--accent3); font-weight: 600; }
+        .git-log-date { color: var(--fg-dim); }
+        
         /* Scrollbar */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
@@ -1060,6 +1073,16 @@
                         </div>
                         <div class="git-panel" id="gitPanel">
                             <p style="color:var(--fg-dim);font-size:13px;padding:40px 0;text-align:center">No git information yet.</p>
+                        </div>
+                        <!-- Git Commit History -->
+                        <div id="gitHistorySection" style="border-top:1px solid var(--border); padding: 12px 24px 24px;">
+                            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 8px;">
+                                <h5 style="font-size:12px; text-transform:uppercase; letter-spacing:0.5px; color:var(--fg-dim); font-weight:600;">Commit History</h5>
+                                <button class="btn" style="font-size:11px; padding:2px 8px;" onclick="loadGitLog()">Refresh</button>
+                            </div>
+                            <div class="git-log-container" id="gitLogContainer">
+                                <p style="color:var(--fg-dim);font-size:13px;padding:20px 0;text-align:center">No commits yet.</p>
+                            </div>
                         </div>
                     </div>
                 </div>
