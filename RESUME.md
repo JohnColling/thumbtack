@@ -4,7 +4,7 @@ yaml front matter:
   purpose: "Session restart context file"
   auto_load: true
   load_priority: "first"
-  last_checkpoint: "2026-05-04 22:44:24 AEST"
+  last_checkpoint: "2026-05-04 23:31:25 AEST"
 ---
 
 > ⚠️ **CRITICAL: READ THIS FILE FIRST ON EVERY SESSION START.**  
@@ -12,92 +12,113 @@ yaml front matter:
 
 # Session Resume — AI Memory
 
-**Last updated:** 2026-05-04 22:44 AEST by session autosave  
+**Last updated:** 2026-05-04 23:31 AEST by session autosave  
 **Location:** Bundamba, Queensland, Australia  
 **User:** John (two kids: Poppy, Kip)  
-**Session context hibernation cycle:** In discussion — SOUL.md auto-resume directive now proposed
+**Session context hibernation cycle:** ACTIVE — SOUL.md auto-resume directive confirmed working
 
 ---
 
-## What we were doing BEFORE this session
+## 🚀 ACTIVE PROJECT: ThumbTack Multi-Agent Orchestrator
 
-- **ThumbTack project** (`~/github/johncolling/thumbtack`, port 3456). FastAPI + Jinja2 SPA + SQLite + asyncio subprocesses.
-- **Systemd service** for auto-restart on crash (`Restart=on-failure`, NOT always).
-- **Context preservation architecture**
-  - Cronjob `thumbtack-autosave` (ID `de57da2a3285`) — runs every 5 min, commits/pushes live code changes to GitHub.
-  - Obsidian vault `Auto-Snapshots.md` — cronjob writes repo snapshot every 5 min.
-  - Hermes memory — stable user profile (John, Poppy, Kip, Bundamba, 10.0.0.53, persona R2-D2 lightly).
+- **Repo:** https://github.com/johncolling/thumbtack (public)  
+- **Local path:** `~/github/johncolling/thumbtack`  
+- **Server:** http://10.0.0.53:3456 (systemd user service)  
+- **Git branch:** `master`, clean (HEAD: `9d43a17`)  
+- **Tech stack:** FastAPI + Jinja2 + SQLite + Tailwind CSS + asyncio subprocesses
 
-## What we were doing THIS session (up to last checkpoint)
+**Just done in this session:**
+- Investigated Hermes source (`run_agent.py:4861+`) to confirm SOUL.md is the VERY FIRST layer injected into the system prompt at session start
+- Confirmed SOUL.md already contains hard directive to auto-read RESUME.md and Things to Do.md on first message of every new session
+- Discussed automating `/new` — found it is a client-side UI command; Hermes cronjobs run in isolated sessions and cannot inject commands into the current chat thread
+- Identified that true auto-`/new` automation requires a local script (tmux send-keys) or gateway-level hook, not a Hermes cronjob alone
+- Agreed on **semi-automatic protocol** for now: when context pressure nears 70–80%, I emit `[CONTEXT_CHECKPOINT_REQUIRED]` → John manually `/new`s → new session auto-loads this file via SOUL.md directive
+- Recorded new task: Add external API to ThumbTack (allow outside services/programs to trigger agents, tasks, or events inside the application)
 
-- Discussing **automated context rotation** — a cron or protocol that injects `/new` near the context ceiling, so I hibernate (save state to disk), flush memory, and resume from `RESUME.md` on wake.
-- **Concept**: Like OS hibernation — serialize all working state to disk, reboot (/new), restore from disk. Gives infinite effective context.
-- **Current barrier**: A Hermes cronjob cannot directly inject `/new` into your active chat client. It can only prepare the save state.
-- **Potential workaround**: Make `SOUL.md` or startup instructions so aggressive that I *always* read `RESUME.md` before asking what to do. That way when you `/new` and say nothing, I auto-resume.
-- **Action this session**: Saving checkpoint (this file), committing to GitHub, updating Things to Do.md.
+**New tasks on running list:**
+1. 🔴 Design auto context-rotation system — In progress. SOUL.md resume confirmed. Need local auto-`/new` trigger mechanism (tmux script or gateway hook).
+2. 🔴 Investigate external API for ThumbTack — Allow outside services/programs to trigger agents, tasks, or events inside the application.
 
----
-
-## Active Decisions / Open Threads
-
-| # | Topic | Status | Blocker |
-|---|-------|--------|---------|
-| 1 | Automated context rotation (`/new` on schedule) | 🔴 DESIGNING | Needs client-side trigger or gateway bot injection |
-| 2 | API for external services to trigger ThumbTack | 🟡 QUEUED | Needs design — webhooks? FastAPI endpoint? |
-| 3 | Task queue polish (status, output, timestamps) | 🟡 TODO | — |
-| 4 | Comparison mode polish (syntax highlight, line numbers) | 🟡 TODO | — |
-| 5 | Mobile responsive sidebar | 🟡 TODO | — |
-| 6 | MCP integration | 🟡 TODO | — |
+**Still on the backlog:**
+- Logo glass polish (iOS candy / Aero effect)
+- Task queue / comparison mode polish
+- MCP integration (tool registry)
+- Auth / login wall
+- Mobile responsive layout
 
 ---
 
-## Technical Stack (for quick recall)
+## ⚙️ CRITICAL ENVIRONMENT FACTS
 
-| Layer | Detail |
-|-------|--------|
-| Backend | FastAPI 0.136.1, uvicorn, Starlette 1.0.0 |
-| Frontend | Jinja2 SPA, vanilla JS, CSS variables (`light-mode` class on `<html>`) |
-| DB | sqlite3 (`thumbtack.db`) — tables: projects, agents, tasks, comparisons, git_settings |
-| Agents | asyncio subprocess: claude, codex, opencode, openclaw, aider, custom |
-| WS | `/ws` broadcasts `{stream, data}` |
-| SPA route | Catch-all `@app.get("/{path:path}")` redirects unknown paths to `/` |
-| Theme | Dark `#0f1115`, light white, accent `#ff7f00`, neon sidebar glow |
-| Git | Remote linking with masked token field |
-
----
-
-## Critical Pitfalls
-
-1. **TemplateResponse signature changed** in FastAPI 0.136+ → use positional `templates.TemplateResponse(request, "index.html")`, not the old dict format. Clear cache: `templates.env.cache.clear()`.
-2. **Two `#emptyState` elements** in DOM — `getElementById` returns first match; use class selectors.
-3. **Port 3456 zombie detection**: `lsof -i :3456` or `ps aux | grep uvicorn`.
-4. **Python cache**: `find . -type d -name __pycache__ -exec rm -rf {} +` after `.py` edits.
-5. **systemd**: `Restart=on-failure` only.
-6. **Token masking**: Settings token shows `••••••••`. Frontend detects dots and excludes token from POST payload to prevent overwriting real token with dots.
-7. **Name**: ThumbTack (capital T in Tack).
+| Fact | Value |
+|---|---|
+| John's local IP | **10.0.0.53** (not localhost; never use 127.0.0.1) |
+| ThumbTack port | 3456 |
+| Vault root | `/home/administrator/Obsidian Vault/` |
+| Running tasks | `Things to Do.md` at vault root |
+| FastAPI template bug | Use `templates.TemplateResponse(request, "index.html")` (new positional signature); clear cache with `templates.env.cache.clear()` |
+| systemd restart policy | `Restart=on-failure` (never `always`) |
+| Token masking | Frontend sends `"••••••••"` as sentinel; server detects and skips overwrite |
+| Hermes SOUL.md path | `~/.hermes/SOUL.md` — loaded as Layer 1 of system prompt every session |
+| Hermes memory files | `~/.hermes/memories/MEMORY.md` + `~/.hermes/memories/USER.md` |
 
 ---
 
-## Context-Rotation Protocol (Proposed)
+## 🔄 SESSION HIBERNATION PROTOCOL (ACTIVE — TESTING)
 
-When context nears ceiling (~70-80% or time expires):
-1. Output `[CONTEXT_CHECKPOINT_REQUIRED]` with summary
-2. Auto-save: dump all active task state → `RESUME.md`
-3. Wait for user `/new`
-4. On wake, STARTUP INSTRUCTIONS force read `RESUME.md` before anything else
-5. Resume as if no gap occurred
+**Goal:** Automated context-window hibernation so the agent never hits 100% context, giving effectively infinite working memory.
 
-This is NOT yet implemented. Currently manual `/new` + manual read.
+**Confirmed architecture:**
+- `SOUL.md` is the first layer of the system prompt (verified in `run_agent.py:4882`). It is injected before memory, skills, tool guidance, and everything else.
+- The hard directive inside `SOUL.md` to read `RESUME.md` and `Things to Do.md` on every new session is already active and effective.
+- A new session (triggered by `/new`) will automatically load state from disk before rendering its first reply.
+
+**Current flow:**
+1. **Save** — autosave cron already saves state every 5 min (memory, Obsidian, GitHub)
+2. **Alert** — when context pressure builds, I emit `[CONTEXT_CHECKPOINT_REQUIRED] + summary`
+3. **Reset** — John types `/new` (manual for now)
+4. **Resume** — new session reads this file automatically via SOUL.md directive → state restored
+
+**Automation gap:**
+- A Hermes `cronjob` runs in an isolated session — it **cannot** inject `/new` into your live chat thread
+- `/new` is a **client-side UI command** (parsed by Telegram/Discord/terminal/prompt_toolkit)
+- **Potential local fix:** A bash cronjob that knows your tmux session name can run `tmux send-keys -t hermes "/new" Enter`
+- **Potential gateway fix:** A custom gateway hook or a second bot that sends `/new` into the channel
+- **Decision:** Keep semi-auto for now. When it starts working well, we can script the final mile.
 
 ---
 
-## Files to read on next session
+## 📋 SERVICES ON r2-d2 (10.0.0.53)
 
-1. **This file** (`RESUME.md`) — ALWAYS FIRST
-2. **`../Things to Do.md`** — shared task list
-3. `git status` — check what changed on disk vs repo
-4. `Auto-Snapshots.md` in Obsidian — for 5-min granularity
+| Service | Port | Status |
+|---|---|---|
+| Thumbtack | 3456 | systemd user, active focus |
+| Horse Racing Data Vault | 80 | systemd user, stable |
+| CloudCLI | 3001 | npx process, stable |
+| Codeg | 3080 | systemd user, needs desktop token |
+| Ollama | 11434 | standalone, local LLM |
+| SSH | 22 | system |
 
 ---
 
-> **If John says nothing after `/new`**, startup instructions should assume "resume from last checkpoint" and pick the top open thread without asking.
+## 🧠 HERMES STATE
+
+- **Cronjob:** `de57da2a3285` (`thumbtack-autosave`, every 5 min)
+- **Pre-run script:** `~/.hermes/scripts/thumbtack-cron-preamble.py`
+- **Memory targets:** `memory` + Obsidian `Session Snapshots/` + GitHub
+- **Persona file:** `~/.hermes/SOUL.md` → Layer 1 of every system prompt; contains hard directive to read RESUME.md
+- **User profile:** John, Bundamba QLD, two kids (Poppy and Kip), prefers R2-D2 persona lightly (drop beep-boop in execution mode)
+
+---
+
+## ✅ FIRST ACTIONS ON NEW SESSION
+
+1. **Read this file fully** — you're reading it now ✓
+2. **Read `Things to Do.md`** in vault root — pick the top open item
+3. **Check Thumbtack status** — `systemctl --user status thumbtack`
+4. **Check last autosave** — `cd ~/github/johncolling/thumbtack && git log --oneline -3`
+5. **Ask John** what he wants to work on next
+
+---
+
+*This file is written at the end of every significant session. If the timestamp is fresh, load state from here. If stale (> 15 minutes), treat with caution and ask for confirmation.*
