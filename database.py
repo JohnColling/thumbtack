@@ -83,6 +83,17 @@ def init_db():
     )
     """)
 
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS github_settings (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        username TEXT NOT NULL DEFAULT '',
+        email TEXT NOT NULL DEFAULT '',
+        token TEXT NOT NULL DEFAULT '',
+        default_branch TEXT NOT NULL DEFAULT 'main',
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+
     conn.commit()
     conn.close()
 
@@ -289,3 +300,42 @@ def delete_task(task_id: int) -> bool:
     conn.commit()
     conn.close()
     return deleted
+
+
+def get_github_settings() -> Dict[str, Any]:
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM github_settings WHERE id = 1")
+    row = cursor.fetchone()
+    conn.close()
+    return dict(row) if row else {}
+
+
+def save_github_settings(username: str, email: str, token: str, default_branch: str = "main") -> bool:
+    conn = get_db()
+    cursor = conn.cursor()
+    now = datetime.now().isoformat()
+    cursor.execute("SELECT id FROM github_settings WHERE id = 1")
+    exists = cursor.fetchone()
+    if exists:
+        cursor.execute(
+            "UPDATE github_settings SET username = ?, email = ?, token = ?, default_branch = ?, updated_at = ? WHERE id = 1",
+            (username, email, token, default_branch, now)
+        )
+    else:
+        cursor.execute(
+            "INSERT INTO github_settings (id, username, email, token, default_branch, updated_at) VALUES (1, ?, ?, ?, ?, ?)",
+            (username, email, token, default_branch, now)
+        )
+    conn.commit()
+    conn.close()
+    return True
+
+
+def delete_github_settings() -> bool:
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM github_settings WHERE id = 1")
+    conn.commit()
+    conn.close()
+    return True

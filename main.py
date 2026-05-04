@@ -66,6 +66,14 @@ def init_db():
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         completed_at TIMESTAMP
     );
+    CREATE TABLE IF NOT EXISTS github_settings (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        username TEXT NOT NULL DEFAULT '',
+        email TEXT NOT NULL DEFAULT '',
+        token TEXT NOT NULL DEFAULT '',
+        default_branch TEXT NOT NULL DEFAULT 'main',
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
     """)
     conn.commit(); conn.close()
 
@@ -507,6 +515,144 @@ async def git_commit(pid: int, data: dict):
     if "nothing to commit" in err or result.stdout.lower().count("nothing"):
         return {"status": "nothing_to_commit", "message": "Nothing to commit, working tree clean"}
     raise HTTPException(500, result.stderr.strip() or "Commit failed")
+
+# ─── GitHub Remote & Settings ──────────────────────────────────────────
+from database import get_github_settings, save_github_settings, delete_github_settings
+
+@app.get("/api/github/config")
+async def get_github_config():
+    cfg = get_github_settings()
+    if not cfg:
+        return {"configured": False, "username": "", "email": "", "default_branch": "main"}
+    return {
+        "configured": True,
+        "username": cfg.get("username", ""),
+        "email": cfg.get("email", ""),
+        "token_present": bool(cfg.get("token", "")),
+        "default_branch": cfg.get("default_branch", "main"),
+    }
+
+@app.post("/api/github/config")
+async def post_github_config(data: dict):
+    username = data.get("username", "").strip()
+    email = data.get("email", "").strip()
+    token = data.get("token", "").strip()
+    branch = data.get("default_branch", "main").strip()
+    if not username:
+        raise HTTPException(400, "GitHub username required")
+    save_github_settings(username, email, token, branch)
+    return {"status": "saved"}
+
+@app.delete("/api/github/config")
+async def clear_github_config():
+    delete_github_settings()
+    return {"status": "cleared"}
+
+@app.post("/api/projects/{pid}/git/remote")
+async def add_git_remote(pid: int, data: dict):
+    proj = await get_project(pid)
+    path = proj["path"]
+    if not os.path.isdir(os.path.join(path, ".git")):
+        raise HTTPException(400, "Not a git repository")
+    url = data.get("url", "").strip()
+    if not url:
+        raise HTTPException(400, "Remote URL required")
+    cfg = get_github_settings()
+    # If HTTPS repo URL and we have token, use it for auth in remote
+    if "github.com" in url and cfg.get("token"):
+        # Convert https://github.com/user/repo.git to https://token@github.com/user/repo.git
+        if url.startswith("https://") and "@" not in url.replace("://", ""):
+            url = url.replace("https://", f"https://{cfg['token']}@")
+    subprocess.run(["git", "remote", "remove", "origin"], cwd=path, capture_output=True)
+    result = subprocess.run(["git", "remote", "add", "origin", url], cwd=path, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise HTTPException(400, result.stderr.strip() or "Failed to add remote")
+    # Set user config for this repo
+    if cfg.get("username"):
+        subprocess.run(["git", "config", "user.name", cfg["username"]], cwd=path, capture_output=True)
+    if cfg.get("email"):
+        subprocess.run(["git", "config", "user.email", cfg["email"]], cwd=path, capture_output=True)
+    return {"status": "remote_added", "url": url.split("@")[-1] if "@" in url else url}
+
+@app.get("/api/projects/{pid}/git/remote")
+async def get_git_remote_status(pid: int):
+    proj = await get_project(pid)
+    path = proj["path"]
+    if not os.path.isdir(os.path.join(path, ".git")):
+        return {"has_remote": False}
+    result = subprocess.run(["git", "remote", "-v"], cwd=path, capture_output=True, text=True)
+    lines = result.stdout.strip().split("\n")
+    remotes = {}
+    for line in lines:
+        parts = line.split()
+        if len(parts) >= 2:
+            remotes[parts[0]] = parts[1]
+    fetch_url = remotes.get("origin", "")
+    # Mask any token in the URL for display
+    display_url = fetch_url
+    if "@" in display_url and display_url.startswith("https://"):
+        display_url = "https://" + display_url.split("@", 1)[1]
+    return {"has_remote": bool(fetch_url), "url": display_url, "raw_url": fetch_url}
+
+@app.post("/api/projects/{pid}/git/push")
+async def git_push(pid: int, data: dict = None):
+    proj = await get_project(pid)
+    path = proj["path"]
+    if not os.path.isdir(os.path.join(path, ".git")):
+        raise HTTPException(400, "Not a git repository")
+    branch = (data.get("branch", "main") if data else "main").strip()
+    cfg = get_github_settings()
+    # Ensure remote uses token if available
+    rem_result = subprocess.run(["git", "remote", "-v"], cwd=path, capture_output=True, text=True)
+    rem_lines = rem_result.stdout.strip().split("\n")
+    has_origin = any("origin" in line for line in rem_lines)
+    if not has_origin:
+        raise HTTPException(400, "No remote origin configured")
+    # Re-config remote with token if needed
+    for line in rem_lines:
+        parts = line.split()
+        if len(parts) >= 2 and parts[0] == "origin":
+            raw_url = parts[1]
+            if "github.com" in raw_url and cfg.get("token") and "@" not in raw_url.replace("://", ""):
+                new_url = raw_url.replace("https://", f"https://{cfg['token']}@")
+                subprocess.run(["git", "remote", "set-url", "origin", new_url], cwd=path, capture_output=True)
+            break
+    result = subprocess.run(
+        ["git", "push", "-u", "origin", branch],
+        cwd=path, capture_output=True, text=True
+    )
+    if result.returncode == 0:
+        return {"status": "pushed", "branch": branch, "output": result.stdout.strip()}
+    err = result.stderr.strip() or result.stdout.strip()
+    raise HTTPException(400, err or "Push failed")
+
+@app.post("/api/projects/{pid}/git/pull")
+async def git_pull(pid: int, data: dict = None):
+    proj = await get_project(pid)
+    path = proj["path"]
+    if not os.path.isdir(os.path.join(path, ".git")):
+        raise HTTPException(400, "Not a git repository")
+    branch = (data.get("branch", "main") if data else "main").strip()
+    cfg = get_github_settings()
+    # Ensure remote uses token if available
+    rem_result = subprocess.run(["git", "remote", "-v"], cwd=path, capture_output=True, text=True)
+    rem_lines = rem_result.stdout.strip().split("\n")
+    for line in rem_lines:
+        parts = line.split()
+        if len(parts) >= 2 and parts[0] == "origin":
+            raw_url = parts[1]
+            if "github.com" in raw_url and cfg.get("token") and "@" not in raw_url.replace("://", ""):
+                new_url = raw_url.replace("https://", f"https://{cfg['token']}@")
+                subprocess.run(["git", "remote", "set-url", "origin", new_url], cwd=path, capture_output=True)
+            break
+    result = subprocess.run(
+        ["git", "pull", "origin", branch],
+        cwd=path, capture_output=True, text=True
+    )
+    if result.returncode == 0:
+        return {"status": "pulled", "branch": branch, "output": result.stdout.strip()}
+    err = result.stderr.strip() or result.stdout.strip()
+    raise HTTPException(400, err or "Pull failed")
 
 # ─── Health ────────────────────────────────────────────────────────────
 @app.get("/api/health")

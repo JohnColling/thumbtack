@@ -64,6 +64,7 @@ async function loadProjects(){
         const list=$('#projectsList');
         if(!projects.length){
             list.innerHTML='<div class="empty-state" style="padding:40px 0"><p style="color:var(--fg-dim);font-size:12px">No projects</p></div>';
+            $('#mainEmptyCta').innerHTML='<span>+</span> Create your first project';
             return;
         }
         list.innerHTML=projects.map(p=>`
@@ -72,6 +73,7 @@ async function loadProjects(){
                 <span class="name">${escapeHtml(p.name)}</span>
                 <span class="count">${p.agent_count||0}</span>
             </div>`).join('');
+        $('#mainEmptyCta').innerHTML='<span>+</span> Add another project';
     }catch(e){console.log('loadProjects error',e);}
 }
 
@@ -92,6 +94,7 @@ async function selectProject(id){
     const data=await api(`/api/projects/${id}`);
     currentProject=data;
     $('#emptyState').style.display='none';
+    $('#projectView').classList.add('active');
     $$('.tab-content').forEach(t=>t.classList.remove('active'));
     $$('.tab').forEach(t=>t.classList.remove('active'));
     $('#tab-agents').classList.add('active');
@@ -121,7 +124,7 @@ async function selectProject(id){
     if(document.querySelector('.tab[data-tab="git"].active')) loadGitStatus();
 }
 
-async function deleteProject(id){if(!confirm('Delete this project and all its agents?'))return;await api(`/api/projects/${id}`,{method:'DELETE'});currentProject=null;$('#emptyState').style.display='flex';$('#mainHeader h2').innerHTML='<span>&#x1f680;</span> Select a project';$('#headerActions').innerHTML='';showToast('Project deleted');await loadProjects();}
+async function deleteProject(id){if(!confirm('Delete this project and all its agents?'))return;await api(`/api/projects/${id}`,{method:'DELETE'});currentProject=null;$('#emptyState').style.display='flex';$('#projectView').classList.remove('active');$('#mainHeader h2').innerHTML='<span>&#x1f680;</span> Select a project';$('#headerActions').innerHTML='';showToast('Project deleted');await loadProjects();}
 
 // ─── Agents ───
 async function spawnAgent(agentType){
@@ -320,6 +323,9 @@ async function clearCompletedTasks(){
 function switchTab(tab){
     $$('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===tab));
     $$('.tab-content').forEach(t=>t.classList.toggle('active',t.id===`tab-${tab}`));
+    if(tab === 'git' && currentProject){
+        loadGitStatus();
+    }
 }
 
 // ─── Helpers ───
@@ -364,6 +370,7 @@ async function loadGitStatus(){
         const countTxt = counts.length ? ' · ' + counts.join(', ') : '';
         sb.innerHTML = branchBadge + cleanBadge + `<span style="color:var(--fg-dim);font-size:12px">${countTxt}</span>`;
         renderGitPanel();
+        loadGitHubRemoteStatus();
     }catch(e){
         sb.innerHTML = `<span style="color:var(--accent4)">Error loading git status</span>`;
         panel.innerHTML = `<p style="color:var(--accent4);padding:20px">${escapeHtml(e.message||'Failed to load git status')}</p>`;
@@ -456,7 +463,184 @@ async function gitCommit(){
     }catch(e){ showToast('Commit failed: '+e.message,'error'); }
 }
 
+// ─── GitHub Integration ───
+
+function toggleSettingsPanel(){
+    const panel = document.getElementById('settingsPanel');
+    const sidebar = document.querySelector('.sidebar');
+    const isHidden = panel.style.display === 'none';
+    if(isHidden){
+        panel.style.display = 'flex';
+        loadGitHubConfig();
+    }else{
+        panel.style.display = 'none';
+    }
+}
+
+async function loadGitHubConfig(){
+    try{
+        const data = await api('/api/github/config');
+        if(data.configured){
+            document.getElementById('ghUsername').value = data.username || '';
+            document.getElementById('ghEmail').value = data.email || '';
+            document.getElementById('ghToken').value = '';
+            document.getElementById('ghBranch').value = data.default_branch || 'main';
+        }else{
+            document.getElementById('ghUsername').value = '';
+            document.getElementById('ghEmail').value = '';
+            document.getElementById('ghToken').value = '';
+            document.getElementById('ghBranch').value = 'main';
+        }
+    }catch(e){ console.error('Failed to load GitHub config:', e); }
+}
+
+async function saveGitHubConfig(){
+    const username = document.getElementById('ghUsername').value.trim();
+    const email = document.getElementById('ghEmail').value.trim();
+    const token = document.getElementById('ghToken').value.trim();
+    const branch = document.getElementById('ghBranch').value.trim() || 'main';
+    if(!username){ showToast('Username required','error'); return; }
+    try{
+        await api('/api/github/config',{
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ username, email, token, default_branch: branch })
+        });
+        showToast('GitHub settings saved');
+        toggleSettingsPanel();
+    }catch(e){ showToast('Failed to save: '+e.message,'error'); }
+}
+
+async function clearGitHubConfig(){
+    try{
+        await api('/api/github/config',{method:'DELETE'});
+        document.getElementById('ghUsername').value = '';
+        document.getElementById('ghEmail').value = '';
+        document.getElementById('ghToken').value = '';
+        document.getElementById('ghBranch').value = 'main';
+        showToast('GitHub settings cleared');
+    }catch(e){ showToast('Failed to clear: '+e.message,'error'); }
+}
+
+async function loadGitHubRemoteStatus(){
+    if(!currentProject) return;
+    const section = document.getElementById('githubRemoteSection');
+    const form = document.getElementById('githubRemoteForm');
+    const linked = document.getElementById('githubRemoteLinked');
+    const badge = document.getElementById('githubRemoteBadge');
+    const urlDisplay = document.getElementById('githubRemoteUrlDisplay');
+
+    try{
+        const data = await api(`/api/projects/${currentProject.id}/git/remote`);
+        if(data.has_remote){
+            section.style.display = 'block';
+            form.style.display = 'none';
+            linked.style.display = 'block';
+            badge.textContent = 'Linked';
+            badge.className = 'remote-badge linked';
+            urlDisplay.textContent = data.url || '';
+        }else{
+            section.style.display = 'block';
+            form.style.display = 'block';
+            linked.style.display = 'none';
+            badge.textContent = 'Not Linked';
+            badge.className = 'remote-badge not-linked';
+        }
+    }catch(e){
+        section.style.display = 'block';
+        form.style.display = 'block';
+        linked.style.display = 'none';
+        badge.textContent = 'Not Linked';
+        badge.className = 'remote-badge not-linked';
+        console.error('Remote status error:', e);
+    }
+}
+
+async function linkGitHubRemote(){
+    if(!currentProject) return;
+    const url = document.getElementById('githubRemoteUrl').value.trim();
+    if(!url){ showToast('Enter a GitHub repository URL','error'); return; }
+    if(!url.includes('github.com')){ showToast('URL must be a GitHub repository','error'); return; }
+    showToast('Linking remote...');
+    try{
+        const data = await api(`/api/projects/${currentProject.id}/git/remote`,{
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({url})
+        });
+        showToast('Remote linked!');
+        document.getElementById('githubRemoteUrl').value = '';
+        await loadGitHubRemoteStatus();
+        await loadGitStatus();
+    }catch(e){ showToast('Failed to link: '+e.message,'error'); }
+}
+
+async function unlinkGitHubRemote(){
+    if(!currentProject) return;
+    showToast('Unlinking remote...');
+    try{
+        // Remove origin remote
+        await api(`/api/projects/${currentProject.id}/git/remote`,{
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({url:''})
+        });
+        showToast('Remote unlinked');
+        await loadGitHubRemoteStatus();
+    }catch(e){ showToast('Failed to unlink','error'); }
+}
+
+async function gitPush(){
+    if(!currentProject) return;
+    showToast('Pushing to GitHub...');
+    try{
+        const cfg = await api('/api/github/config');
+        const branch = cfg.default_branch || 'main';
+        const data = await api(`/api/projects/${currentProject.id}/git/push`,{
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ branch })
+        });
+        const output = document.getElementById('gitPushPullOutput');
+        output.textContent = data.output || 'Push complete';
+        output.style.color = 'var(--accent2)';
+        showToast('Pushed to '+branch);
+        await loadGitStatus();
+    }catch(e){
+        const output = document.getElementById('gitPushPullOutput');
+        output.textContent = e.message || 'Push failed';
+        output.style.color = 'var(--accent4)';
+        showToast('Push failed: '+e.message,'error');
+    }
+}
+
+async function gitPull(){
+    if(!currentProject) return;
+    showToast('Pulling from GitHub...');
+    try{
+        const cfg = await api('/api/github/config');
+        const branch = cfg.default_branch || 'main';
+        const data = await api(`/api/projects/${currentProject.id}/git/pull`,{
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ branch })
+        });
+        const output = document.getElementById('gitPushPullOutput');
+        output.textContent = data.output || 'Pull complete';
+        output.style.color = 'var(--accent2)';
+        showToast('Pulled from '+branch);
+        await loadGitStatus();
+    }catch(e){
+        const output = document.getElementById('gitPushPullOutput');
+        output.textContent = e.message || 'Pull failed';
+        output.style.color = 'var(--accent4)';
+        showToast('Pull failed: '+e.message,'error');
+    }
+}
+
 // Expose for inline onclicks
+window.toggleSettingsPanel=toggleSettingsPanel;
+window.saveGitHubConfig=saveGitHubConfig;
+window.clearGitHubConfig=clearGitHubConfig;
+window.linkGitHubRemote=linkGitHubRemote;
+window.unlinkGitHubRemote=unlinkGitHubRemote;
+window.gitPush=gitPush;
+window.gitPull=gitPull;
 window.selectProject=selectProject;
 window.createProject=createProject;
 window.showNewProjectModal=showNewProjectModal;
