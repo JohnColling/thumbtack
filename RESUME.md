@@ -1,89 +1,60 @@
-# RESUME — Session Checkpoint
+# RESUME.md — ThumbTack Orchestrator Session
+## Session: 2026-05-05 Morning
 
-> **CRITICAL: This file is read on EVERY new session start. Do not skip.**
-> **Last updated:** 2026-05-05 06:06 AEST  
-> **Location:** Bundamba, Queensland, Australia  
-> **User:** John (two kids: Poppy and Kip)
+### Current State
+- **Project**: ThumbTack (~/github/johncolling/thumbtack)
+- **Server**: Running on port 3456 via systemd user service
+- **HEAD**: `d884046` — feat(orchestrator): Phase 1 heartbeat + system console
 
----
+### What Was Just Built (Phase 1: Skeleton & Heartbeat)
 
-## 🚀 ACTIVE PROJECT: ThumbTack Multi-Agent Orchestrator
+#### Database
+- `agent_log` table: timestamp, level, message, task_id, agent_id, project_id
+- Helper functions: `add_agent_log()`, `get_agent_logs()`, `get_recent_agent_logs()`
 
-- **Repo:** `https://github.com/johncolling/thumbtack`  
-- **Local path:** `~/github/johncolling/thumbtack`  
-- **Server:** `http://10.0.0.53:3456`  
-- **Git branch:** `master`  
-- **HEAD commit:** `0e2fdb8` — "ignore thumbtack.log"  
-- **Tech stack:** FastAPI + Jinja2 + SQLite + Tailwind CSS + asyncio subprocesses  
+#### Backend
+- `_orchestrator_heartbeat()` — asyncio background loop, wakes every 15 min
+- Scans `tasks` table for pending/running work
+- Logs `AGENT_WAKE` → `AGENT_SCAN` → `AGENT_IDLE` or `AGENT_TASK_FOUND`
+- FastAPI `lifespan` manager — starts heartbeat on app boot, cancels on shutdown
+- `/api/orchestrator/status` — returns current status, last wake, tick count, active tasks
+- `/api/agent-log` — returns last N log entries with filtering by level/project
 
-**State of code:** Clean working tree. `static/app.js` has working rotary dial JS. Templates have glass logo and neon sidebar.
+#### Frontend
+- System Console panel: fixed bottom of screen, collapsible
+- Status dot with states: idle (grey), scanning (yellow), running (orange), error (red)
+- Polling every 5s for logs + status
+- Color-coded log levels with animations
 
----
+#### Roadmap
+- `ROADMAP.md` created with full 4-phase vision:
+  - Phase 1: Skeleton & Heartbeat (DONE)
+  - Phase 2: Human-Driven Pipeline
+  - Phase 3: Autonomous Delegation
+  - Phase 4: True Autonomy
 
-## 📋 CURRENTLY DISCUSSING / BUILDING
+### Architecture Vision (Confirmed)
+ThumbTack is the orchestrator. Hermes is just the dev tool for building it.
+- Persistent FastAPI server with heartbeat
+- SQLite task queue
+- Specialist agent workers spawned on-demand (Claude Code, Codex, etc.)
+- Human gives one high-level goal → ThumbTack plans → John approves → runs autonomously
+- Human reviews completed work in batches
 
-This session (2026-05-04 late evening):
-1. **Discussed automated context-window hibernation** — save everything, `/new` reset, auto-resume from RESUME.md
-2. **Verified SOUL.md auto-read protocol** — `SOUL.md` is Layer 1 of system prompt; confirmed by `run_agent.py:4882`
-3. **SOUL.md already contains the SESSION RESURRECTION PROTOCOL that forces a `read_file` of this RESUME.md on every new session**
-4. **Current idea:** Design a cronjob or local script that can trigger `/new` automatically every ~15 min, so context never fills. In a terminal session this would need `tmux send-keys`; in a gateway session (Discord/Telegram) it's harder because `/new` is a client command.
-5. **Decision:** Semi-auto for now — I'll save proactively and emit `[CONTEXT_CHECKPOINT_REQUIRED]`; John manually `/new`s when convenient. Later we can script the final keystroke.
+### Next Tasks (from Things to Do.md)
+1. Test the heartbeat loop — verify it fires and logs appear in System Console
+2. Restart uvicorn to load the lifespan manager
+3. Phase 2: Human-driven pipeline (task creation → decomposition → approval → execution)
+4. External API for outside service triggers
+5. Token visibility gauge in UI
 
----
+### Files Modified This Session
+- `ROADMAP.md` (new)
+- `database.py` (agent_log table + helpers)
+- `main.py` (heartbeat loop + lifespan + endpoints)
+- `templates/index.html` (System Console panel)
 
-## 🔴 TOP OPEN TASKS (from Things to Do.md)
-
-1. **External API for ThumbTack** — Design REST/WebSocket endpoints so outside services can trigger agents, tasks, or events  
-   (This is 🟡 Active / Next Up)
-2. **True auto-`/new` automation** — Local `tmux send-keys` script or gateway hook that detects context pressure and physically sends `/new`, making hibernation fully hands-off  
-3. **Logo glass polish** (iOS candy / Aero effect)  
-4. **Task queue / comparison mode polish**  
-5. **MCP integration** (tool registry)  
-6. **Auth / login wall**  
-7. **Mobile responsive layout**
-
----
-
-## ⚙️ CRITICAL ENVIRONMENT FACTS
-
-| Fact | Value |
-|---|---|
-| John's local IP | **10.0.0.53** (never 127.0.0.1) |
-| ThumbTack port | 3456 |
-| Vault root | `/home/administrator/Obsidian Vault/` |
-| Running tasks | `Things to Do.md` at vault root |
-| FastAPI template bug | Use `templates.TemplateResponse(request, "index.html")` + `templates.env.cache.clear()` |
-| systemd restart policy | `Restart=on-failure` only |
-| Token masking | Frontend sends `"••••••••"`; server detects and skips overwrite |
-
----
-
-## 🔄 CONTEXT PRESERVATION SYSTEM
-
-| Component | Detail |
-|---|---|
-| Cronjob | `de57da2a3285` (`thumbtack-autosave`, every 5 min) |
-| Pre-run script | `~/.hermes/scripts/thumbtack-cron-preamble.py` |
-| Hermes memory | `memory` tool — 2,200 char budget |
-| Obsidian snapshots | `AI Memory/Projects/ThumbTack/Auto-Snapshots.md` |
-| GitHub backup | Auto-push on cron tick if dirty |
-| Persona / resume | `~/.hermes/SOUL.md` → Layer 1 of system prompt |
-| Canonical resume | This file (`/home/administrator/Obsidian Vault/AI Memory/RESUME.md`) |
-
-**Current status:** Semi-automatic. Auto-save is live. Auto-`/new` is not yet built — requires either tmux scripting or gateway-level support.
-
----
-
-## 📋 SERVICES ON r2-d2 (10.0.0.53)
-
-| Service | Port | Status |
-|---|---|---|
-| Thumbtack | 3456 | Active focus |
-| Horse Racing Data Vault | 80 | Stable |
-| Codeg | 3080 | Needs desktop token |
-| Ollama | 11434 | Local LLM |
-| SSH | 22 | System |
-
----
-
-*Read this file first. Read `Things to Do.md` second. Start working the top task unless John says otherwise.*
+### Environment
+- John: Bundamba, Queensland, Australia
+- Server IP: 10.0.0.53:3456
+- Model: kimi-k2.6 (262k context)
