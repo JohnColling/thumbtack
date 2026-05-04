@@ -1,4 +1,5 @@
-/**Thumbtack – Agent Runner**
+"""Thumbtack - Agent Runner.
+
 Manages agent subprocesses with asyncio and WebSocket streaming.
 """
 import asyncio
@@ -127,8 +128,7 @@ class AgentManager:
                 os.kill(proc.pid, signal.SIGKILL)
             except ProcessLookupError:
                 pass
-        else:
-            proc.kill()
+        proc.kill()
         agent.running = False
         if agent.task and not agent.task.done():
             agent.task.cancel()
