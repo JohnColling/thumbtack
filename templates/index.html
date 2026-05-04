@@ -1128,7 +1128,109 @@
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 3px; }
         ::-webkit-scrollbar-thumb:hover { background: var(--border); }
-    </style>
+    
+        /* System Console */
+        .system-console {
+            position: fixed;
+            bottom: 0;
+            left: 280px;
+            right: 0;
+            height: 180px;
+            background: var(--bg0);
+            border-top: 2px solid var(--accent);
+            display: flex;
+            flex-direction: column;
+            z-index: 100;
+            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+            font-size: 11px;
+            transition: transform 0.2s ease;
+        }
+        .system-console.collapsed {
+            transform: translateY(calc(100% - 28px));
+        }
+        .system-console.collapsed .console-toggle-btn {
+            transform: rotate(180deg);
+        }
+        .console-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 4px 12px;
+            background: var(--bg1);
+            border-bottom: 1px solid var(--border);
+            cursor: pointer;
+            user-select: none;
+        }
+        .console-header-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .console-status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent2);
+            animation: pulse-dot 2s ease-in-out infinite;
+        }
+        .console-status-dot.idle { background: var(--fg-dim); animation: none; }
+        .console-status-dot.scanning { background: var(--warn); }
+        .console-status-dot.running { background: var(--accent); }
+        .console-status-dot.error { background: var(--accent4); animation: pulse-dot 0.8s ease-in-out infinite; }
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        .console-title { font-weight: 600; color: var(--fg); font-size: 11px; }
+        .console-meta { color: var(--fg-dim); font-size: 10px; }
+        .console-toggle-btn {
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: transform 0.2s;
+        }
+        .console-toggle-btn:hover { background: var(--bg2); }
+        .console-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 6px 12px;
+            scroll-behavior: smooth;
+        }
+        .console-line {
+            display: flex;
+            gap: 8px;
+            line-height: 1.5;
+            opacity: 0;
+            animation: fadeIn 0.3s ease forwards;
+        }
+        @keyframes fadeIn {
+            to { opacity: 1; }
+        }
+        .console-time { color: var(--fg-dim); flex-shrink: 0; }
+        .console-level {
+            flex-shrink: 0;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 9px;
+            padding: 0 4px;
+            border-radius: 3px;
+            background: var(--bg2);
+        }
+        .console-level.AGENT_WAKE { color: var(--accent2); }
+        .console-level.AGENT_IDLE { color: var(--fg-dim); }
+        .console-level.AGENT_SCAN { color: var(--accent3); }
+        .console-level.AGENT_TASK_FOUND { color: var(--accent); }
+        .console-level.TASK_START { color: var(--accent); background: rgba(255,127,0,0.15); }
+        .console-level.TASK_DONE { color: var(--accent2); background: rgba(63,185,80,0.15); }
+        .console-level.SYSTEM { color: var(--fg-dim); }
+        .console-level.ERROR { color: var(--accent4); background: rgba(248,81,73,0.15); }
+        .console-msg { color: var(--fg); flex: 1; }
+        .console-empty { color: var(--fg-dim); text-align: center; padding: 20px; font-style: italic; }
+</style>
 </head>
 <body>
     <!-- Sidebar -->
@@ -1518,5 +1620,115 @@
     <div class="toast-container" id="toastContainer"></div>
 
     <script src="/static/app.js"></script>
+
+    <!-- System Console -->
+    <div class="system-console" id="systemConsole">
+        <div class="console-header" id="consoleHeader">
+            <div class="console-header-left">
+                <div class="console-status-dot idle" id="consoleStatusDot"></div>
+                <span class="console-title">Orchestrator</span>
+                <span class="console-meta" id="consoleMeta">Initializing...</span>
+            </div>
+            <div class="console-toggle-btn" id="consoleToggle" onclick="toggleConsole()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+            </div>
+        </div>
+        <div class="console-body" id="consoleBody">
+            <div class="console-empty" id="consoleEmpty">Waiting for first heartbeat...</div>
+        </div>
+    </div>
+
+    <script>
+    // ── System Console ───────────────────────────────────────────────
+    let consoleLines = [];
+    let consoleCollapsed = false;
+    let lastLogId = 0;
+    
+    function toggleConsole() {
+        const el = document.getElementById('systemConsole');
+        consoleCollapsed = !consoleCollapsed;
+        el.classList.toggle('collapsed', consoleCollapsed);
+    }
+    
+    function formatTime(ts) {
+        const d = new Date(ts);
+        return d.toLocaleTimeString('en-AU', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+    
+    function renderConsoleLine(log) {
+        const body = document.getElementById('consoleBody');
+        const empty = document.getElementById('consoleEmpty');
+        if (empty) empty.style.display = 'none';
+        
+        const line = document.createElement('div');
+        line.className = 'console-line';
+        line.innerHTML = `
+            <span class="console-time">${formatTime(log.timestamp)}</span>
+            <span class="console-level ${log.level}">${log.level}</span>
+            <span class="console-msg">${escapeHtml(log.message)}</span>
+        `;
+        body.appendChild(line);
+        body.scrollTop = body.scrollHeight;
+        
+        // Keep only last 100 lines
+        while (body.children.length > 100) {
+            body.removeChild(body.firstChild);
+        }
+    }
+    
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    async function updateConsoleStatus() {
+        try {
+            const res = await fetch('/api/orchestrator/status');
+            if (!res.ok) return;
+            const status = await res.json();
+            const dot = document.getElementById('consoleStatusDot');
+            const meta = document.getElementById('consoleMeta');
+            
+            dot.className = 'console-status-dot ' + (status.status || 'idle');
+            const wakeTime = status.last_wake ? formatTime(status.last_wake) : 'never';
+            meta.textContent = `${status.status} • tick #${status.total_ticks} • last wake ${wakeTime}`;
+        } catch (e) {}
+    }
+    
+    async function fetchAgentLogs() {
+        try {
+            const res = await fetch('/api/agent-log?limit=50');
+            if (!res.ok) return;
+            const data = await res.json();
+            const logs = data.logs || [];
+            
+            // Only render new logs (avoid duplicates)
+            for (const log of logs.reverse()) {
+                if (log.id > lastLogId) {
+                    renderConsoleLine(log);
+                    lastLogId = log.id;
+                }
+            }
+        } catch (e) {}
+    }
+    
+    // Poll every 5 seconds
+    setInterval(fetchAgentLogs, 5000);
+    setInterval(updateConsoleStatus, 5000);
+    
+    // Initial fetch
+    fetchAgentLogs();
+    updateConsoleStatus();
+    
+    // Auto-expand on first log
+    setTimeout(() => {
+        if (consoleLines.length > 0 && consoleCollapsed) {
+            toggleConsole();
+        }
+    }, 2000);
+    </script>
 </body>
 </html>

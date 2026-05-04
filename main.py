@@ -11,6 +11,9 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
+from contextlib import asynccontextmanager
+from database import add_agent_log, get_agent_logs
+
 # ── Paths ───────────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB = os.path.join(BASE_DIR, "thumbtack.db")
@@ -66,6 +69,15 @@ def init_db():
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         completed_at TIMESTAMP
     );
+    CREATE TABLE IF NOT EXISTS agent_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        level TEXT NOT NULL DEFAULT 'INFO',
+        message TEXT NOT NULL,
+        task_id INTEGER,
+        agent_id INTEGER,
+        project_id INTEGER
+    );
     CREATE TABLE IF NOT EXISTS github_settings (
         id INTEGER PRIMARY KEY CHECK (id = 1),
         username TEXT NOT NULL DEFAULT '',
@@ -76,6 +88,50 @@ def init_db():
     );
     """)
     conn.commit(); conn.close()
+
+
+# ── Orchestrator Heartbeat ────────────────────────────────────────────
+HEARTBEAT_INTERVAL = 900  # 15 minutes
+HEARTBEAT_TASK: asyncio.Task | None = None
+ORCHESTRATOR_STATE = {
+    "last_wake": None,
+    "status": "idle",  # idle | scanning | running | error
+    "active_tasks": 0,
+    "total_ticks": 0,
+}
+
+async def _orchestrator_heartbeat():
+    """Background loop: wakes on interval, scans queue, logs status."""
+    while True:
+        ORCHESTRATOR_STATE["last_wake"] = datetime.now().isoformat()
+        ORCHESTRATOR_STATE["total_ticks"] += 1
+        
+        # Log wake
+        add_agent_log("AGENT_WAKE", f"Orchestrator heartbeat tick #{ORCHESTRATOR_STATE['total_ticks']}")
+        
+        # Scan for pending tasks
+        conn = _db()
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM tasks WHERE status = 'pending'")
+        pending = cur.fetchone()[0]
+        cur.execute("SELECT COUNT(*) FROM tasks WHERE status = 'running'")
+        running = cur.fetchone()[0]
+        conn.close()
+        
+        ORCHESTRATOR_STATE["active_tasks"] = running
+        
+        if pending == 0 and running == 0:
+            add_agent_log("AGENT_IDLE", f"Queue empty. {pending} pending, {running} running. Sleeping {HEARTBEAT_INTERVAL}s.")
+            ORCHESTRATOR_STATE["status"] = "idle"
+        else:
+            add_agent_log("AGENT_SCAN", f"Found {pending} pending, {running} running tasks.")
+            ORCHESTRATOR_STATE["status"] = "scanning"
+            # TODO: Phase 2 — actually dispatch tasks to agents
+            # For now just log that we found work
+            if pending > 0:
+                add_agent_log("AGENT_TASK_FOUND", f"{pending} tasks waiting for dispatch.")
+        
+        await asyncio.sleep(HEARTBEAT_INTERVAL)
 
 # ── AgentProcess ────────────────────────────────────────────────────────
 class AgentProcess:
@@ -157,7 +213,22 @@ class AgentProcess:
 ACTIVE: Dict[int, AgentProcess] = {}
 
 # ── FastAPI ─────────────────────────────────────────────────────────────
-app = FastAPI(title="Thumbtack", version="1.1.0")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global HEARTBEAT_TASK
+    init_db()
+    add_agent_log("SYSTEM", "ThumbTack orchestrator started. Heartbeat armed.")
+    HEARTBEAT_TASK = asyncio.create_task(_orchestrator_heartbeat())
+    yield
+    if HEARTBEAT_TASK and not HEARTBEAT_TASK.done():
+        HEARTBEAT_TASK.cancel()
+        try:
+            await HEARTBEAT_TASK
+        except asyncio.CancelledError:
+            pass
+    add_agent_log("SYSTEM", "ThumbTack orchestrator shutting down.")
+
+app = FastAPI(title="Thumbtack", version="1.1.0", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR,"static")), name="static")
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR,"templates"))
 
@@ -681,6 +752,22 @@ async def git_log(pid: int, limit: int = Query(50)):
     return {"commits": commits}
 
 # ─── Health ────────────────────────────────────────────────────────────
+# ─── Orchestrator Status ─────────────────────────────────────────────
+@app.get("/api/orchestrator/status")
+async def orchestrator_status():
+    return {
+        "status": ORCHESTRATOR_STATE["status"],
+        "last_wake": ORCHESTRATOR_STATE["last_wake"],
+        "total_ticks": ORCHESTRATOR_STATE["total_ticks"],
+        "active_tasks": ORCHESTRATOR_STATE["active_tasks"],
+        "heartbeat_interval": HEARTBEAT_INTERVAL,
+    }
+
+@app.get("/api/agent-log")
+async def agent_log(limit: int = 50, level: str = None, project_id: int = None):
+    logs = get_agent_logs(limit=limit, project_id=project_id, level=level)
+    return {"logs": logs}
+
 @app.get("/api/health")
 async def health(): return {"status":"ok","agents":len(ACTIVE)}
 
@@ -703,4 +790,3 @@ async def spa_catchall(r: Request, path: str):
     return templates.TemplateResponse(r, "index.html")
 
 # ─── Init ──────────────────────────────────────────────────────────────
-init_db()

@@ -84,6 +84,21 @@ def init_db():
     """)
 
     cursor.execute("""
+    CREATE TABLE IF NOT EXISTS agent_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        level TEXT NOT NULL DEFAULT 'INFO',
+        message TEXT NOT NULL,
+        task_id INTEGER,
+        agent_id INTEGER,
+        project_id INTEGER,
+        FOREIGN KEY (task_id) REFERENCES tasks(id),
+        FOREIGN KEY (agent_id) REFERENCES agents(id),
+        FOREIGN KEY (project_id) REFERENCES projects(id)
+    )
+    """)
+
+    cursor.execute("""
     CREATE TABLE IF NOT EXISTS github_settings (
         id INTEGER PRIMARY KEY CHECK (id = 1),
         username TEXT NOT NULL DEFAULT '',
@@ -343,3 +358,57 @@ def delete_github_settings() -> bool:
     conn.commit()
     conn.close()
     return True
+
+def add_agent_log(level: str, message: str, task_id: int = None, agent_id: int = None, project_id: int = None) -> int:
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO agent_log (level, message, task_id, agent_id, project_id) VALUES (?, ?, ?, ?, ?)",
+        (level, message, task_id, agent_id, project_id)
+    )
+    log_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return log_id
+
+
+def get_agent_logs(limit: int = 100, project_id: int = None, level: str = None) -> List[Dict[str, Any]]:
+    conn = get_db()
+    cursor = conn.cursor()
+    if project_id and level:
+        cursor.execute(
+            "SELECT * FROM agent_log WHERE project_id = ? AND level = ? ORDER BY timestamp DESC LIMIT ?",
+            (project_id, level, limit)
+        )
+    elif project_id:
+        cursor.execute(
+            "SELECT * FROM agent_log WHERE project_id = ? ORDER BY timestamp DESC LIMIT ?",
+            (project_id, limit)
+        )
+    elif level:
+        cursor.execute(
+            "SELECT * FROM agent_log WHERE level = ? ORDER BY timestamp DESC LIMIT ?",
+            (level, limit)
+        )
+    else:
+        cursor.execute(
+            "SELECT * FROM agent_log ORDER BY timestamp DESC LIMIT ?",
+            (limit,)
+        )
+    rows = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return rows
+
+
+def get_recent_agent_logs(minutes: int = 60) -> List[Dict[str, Any]]:
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT * FROM agent_log WHERE timestamp > datetime('now', '-? minutes') ORDER BY timestamp DESC",
+        (minutes,)
+    )
+    rows = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return rows
+
+
