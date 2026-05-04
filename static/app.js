@@ -539,7 +539,7 @@ async function loadGitHubConfig(){
         if(data.configured){
             document.getElementById('ghUsername').value = data.username || '';
             document.getElementById('ghEmail').value = data.email || '';
-            document.getElementById('ghToken').value = '';
+            document.getElementById('ghToken').value = data.token_present ? '••••••••••••••••••••••••••' : '';
             document.getElementById('ghBranch').value = data.default_branch || 'main';
         }else{
             document.getElementById('ghUsername').value = '';
