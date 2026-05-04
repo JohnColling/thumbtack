@@ -5,7 +5,10 @@ File browser · Agent comparison · Task queue
 import os, asyncio, subprocess, sqlite3, json
 from typing import Dict, Optional, List
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from fastapi import FastAPI, Request, HTTPException, Query, WebSocket, WebSocketDisconnect
+
+TZ = ZoneInfo("Australia/Brisbane")
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -45,7 +48,7 @@ def init_db():
     CREATE TABLE IF NOT EXISTS projects (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL, path TEXT NOT NULL,
-        description TEXT DEFAULT '', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        description TEXT DEFAULT '', created_at TEXT DEFAULT ''
     );
     CREATE TABLE IF NOT EXISTS agents (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -53,25 +56,25 @@ def init_db():
         agent_type TEXT NOT NULL DEFAULT 'custom',
         command TEXT,
         pid INTEGER, status TEXT DEFAULT 'idle',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at TEXT DEFAULT ''
     );
     CREATE TABLE IF NOT EXISTS agent_output (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         agent_id INTEGER NOT NULL,
         output TEXT, is_stderr INTEGER DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at TEXT DEFAULT ''
     );
     CREATE TABLE IF NOT EXISTS tasks (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         project_id INTEGER NOT NULL,
         task_text TEXT NOT NULL, status TEXT DEFAULT 'pending',
         agent_id INTEGER, result TEXT DEFAULT '',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        completed_at TIMESTAMP
+        created_at TEXT DEFAULT '',
+        completed_at TEXT
     );
     CREATE TABLE IF NOT EXISTS agent_log (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        timestamp TEXT DEFAULT '',
         level TEXT NOT NULL DEFAULT 'INFO',
         message TEXT NOT NULL,
         task_id INTEGER,
@@ -84,7 +87,7 @@ def init_db():
         email TEXT NOT NULL DEFAULT '',
         token TEXT NOT NULL DEFAULT '',
         default_branch TEXT NOT NULL DEFAULT 'main',
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        updated_at TEXT DEFAULT ''
     );
     """)
     conn.commit(); conn.close()
@@ -103,7 +106,7 @@ ORCHESTRATOR_STATE = {
 async def _orchestrator_heartbeat():
     """Background loop: wakes on interval, scans queue, logs status."""
     while True:
-        ORCHESTRATOR_STATE["last_wake"] = datetime.now().isoformat()
+        ORCHESTRATOR_STATE["last_wake"] = datetime.now(TZ).isoformat()
         ORCHESTRATOR_STATE["total_ticks"] += 1
         
         # Log wake
@@ -480,8 +483,9 @@ async def run_task(tid: int, agent_id: int = Query(...)):
 
 async def _mark_task_done(tid: int, aid: int, result: str):
     await asyncio.sleep(2)  # give time for output
+    now = datetime.now(TZ).isoformat()
     conn = _db(); cur = conn.cursor()
-    cur.execute("UPDATE tasks SET status=?, result=?, completed_at=CURRENT_TIMESTAMP WHERE id=?", ("done", result, tid))
+    cur.execute("UPDATE tasks SET status=?, result=?, completed_at=? WHERE id=?", ("done", result, now, tid))
     conn.commit(); conn.close()
 
 # ─── WebSocket ──────────────────────────────────────────────────────────

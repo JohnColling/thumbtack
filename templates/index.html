@@ -1654,7 +1654,13 @@
     
     function formatTime(ts) {
         const d = new Date(ts);
-        return d.toLocaleTimeString('en-AU', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        return d.toLocaleTimeString('en-AU', { 
+            hour12: false, 
+            hour: '2-digit', 
+            minute: '2-digit', 
+            second: '2-digit',
+            timeZone: 'Australia/Brisbane'
+        });
     }
     
     function renderConsoleLine(log) {

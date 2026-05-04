@@ -6,10 +6,16 @@ SQLite database layer for Thumbtack orchestrator.
 import sqlite3
 import json
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from typing import List, Optional, Dict, Any
 from pathlib import Path
 
 DB_PATH = Path(__file__).parent / "thumbtack.db"
+TZ = ZoneInfo("Australia/Brisbane")
+
+def now_aest() -> str:
+    """Return current AEST (UTC+10) timestamp as readable string."""
+    return datetime.now(TZ).strftime("%Y-%m-%d %H:%M:%S")
 
 
 def get_db():
@@ -29,7 +35,7 @@ def init_db():
         name TEXT NOT NULL,
         path TEXT NOT NULL,
         description TEXT DEFAULT '',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at TEXT DEFAULT ''
     )
     """)
 
@@ -41,7 +47,7 @@ def init_db():
         custom_command TEXT DEFAULT '',
         pid INTEGER,
         status TEXT DEFAULT 'idle',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        created_at TEXT DEFAULT '',
         FOREIGN KEY (project_id) REFERENCES projects(id)
     )
     """)
@@ -51,7 +57,7 @@ def init_db():
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         agent_id INTEGER NOT NULL,
         command TEXT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        created_at TEXT DEFAULT '',
         FOREIGN KEY (agent_id) REFERENCES agents(id)
     )
     """)
@@ -62,7 +68,7 @@ def init_db():
         agent_id INTEGER NOT NULL,
         stream TEXT NOT NULL,
         line TEXT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        created_at TEXT DEFAULT '',
         FOREIGN KEY (agent_id) REFERENCES agents(id)
     )
     """)
@@ -75,9 +81,9 @@ def init_db():
         command TEXT NOT NULL,
         status TEXT DEFAULT 'pending',
         result TEXT DEFAULT '',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        started_at TIMESTAMP,
-        completed_at TIMESTAMP,
+        created_at TEXT DEFAULT '',
+        started_at TEXT,
+        completed_at TEXT,
         FOREIGN KEY (project_id) REFERENCES projects(id),
         FOREIGN KEY (agent_id) REFERENCES agents(id)
     )
@@ -86,7 +92,7 @@ def init_db():
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS agent_log (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        timestamp TEXT DEFAULT '',
         level TEXT NOT NULL DEFAULT 'INFO',
         message TEXT NOT NULL,
         task_id INTEGER,
@@ -105,7 +111,7 @@ def init_db():
         email TEXT NOT NULL DEFAULT '',
         token TEXT NOT NULL DEFAULT '',
         default_branch TEXT NOT NULL DEFAULT 'main',
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        updated_at TEXT DEFAULT ''
     )
     """)
 
@@ -292,7 +298,7 @@ def get_task(task_id: int) -> Optional[Dict[str, Any]]:
 def update_task_status(task_id: int, status: str, result: str = "", agent_id: Optional[int] = None) -> bool:
     conn = get_db()
     cursor = conn.cursor()
-    now = datetime.now().isoformat()
+    now = now_aest()
     if status == "running":
         cursor.execute("UPDATE tasks SET status = ?, agent_id = ?, started_at = ? WHERE id = ?",
                        (status, agent_id, now, task_id))
@@ -329,7 +335,7 @@ def get_github_settings() -> Dict[str, Any]:
 def save_github_settings(username: str, email: str, token: Optional[str] = None, default_branch: str = "main") -> bool:
     conn = get_db()
     cursor = conn.cursor()
-    now  = datetime.now().isoformat()
+    now = now_aest()
     cursor.execute("SELECT token FROM github_settings WHERE id = 1")
     existing = cursor.fetchone()
     if token is None and existing:
@@ -363,8 +369,8 @@ def add_agent_log(level: str, message: str, task_id: int = None, agent_id: int =
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute(
-        "INSERT INTO agent_log (level, message, task_id, agent_id, project_id) VALUES (?, ?, ?, ?, ?)",
-        (level, message, task_id, agent_id, project_id)
+        "INSERT INTO agent_log (timestamp, level, message, task_id, agent_id, project_id) VALUES (?, ?, ?, ?, ?, ?)",
+        (now_aest(), level, message, task_id, agent_id, project_id)
     )
     log_id = cursor.lastrowid
     conn.commit()
@@ -403,9 +409,12 @@ def get_agent_logs(limit: int = 100, project_id: int = None, level: str = None) 
 def get_recent_agent_logs(minutes: int = 60) -> List[Dict[str, Any]]:
     conn = get_db()
     cursor = conn.cursor()
+    from datetime import datetime, timedelta
+    now = datetime.fromisoformat(now_aest())
+    cutoff = (now - timedelta(minutes=minutes)).isoformat()
     cursor.execute(
-        "SELECT * FROM agent_log WHERE timestamp > datetime('now', '-? minutes') ORDER BY timestamp DESC",
-        (minutes,)
+        "SELECT * FROM agent_log WHERE timestamp > ? ORDER BY timestamp DESC",
+        (cutoff,)
     )
     rows = [dict(row) for row in cursor.fetchall()]
     conn.close()
