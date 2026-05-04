@@ -1,156 +1,110 @@
-# ThumbTack — Resume Point
+---
+yaml front matter:
+  title: "RESUME.md"
+  purpose: "Session restart context file"
+  auto_load: true
+  load_priority: "first"
+  last_checkpoint: "2026-05-04 22:44:24 AEST"
+---
 
-> Last updated: 2026-05-04 22:14 AEST
-> Head commit: `67a896d` (pushed to github.com/johncolling/thumbtack)
->
-> Screenshots in README:
-> - `thumbtack-homepage.png` — Dashboard / welcome screen (no project selected)
-> - `thumbtack-agents-tab.png` — Agents tab with 6 agent spawn cards
-> - `thumbtack-git-tab.png` — Git tab with status, commit history, remote linking
-> - `thumbtack-settings.png` — Settings panel with GitHub credentials (username, email, token, branch)
+> ⚠️ **CRITICAL: READ THIS FILE FIRST ON EVERY SESSION START.**  
+> This file is the canonical wake-up state. If this is a new session, do not proceed without reading this file in full.
+
+# Session Resume — AI Memory
+
+**Last updated:** 2026-05-04 22:44 AEST  
+**Location:** Bundamba, Queensland, Australia  
+**Session context hibernation cycle:** In discussion (not yet automated)
 
 ---
 
-## How to Start
+## 🚀 ACTIVE PROJECT: ThumbTack Multi-Agent Orchestrator
 
-```bash
-cd ~/github/johncolling/thumbtack
-# If env changed:
-python -m uvicorn main:app --host 0.0.0.0 --port 3456
-# Or via systemd: systemctl --user restart thumbtack
-```
+- **Repo:** https://github.com/johncolling/thumbtack (public)  
+- **Local path:** `~/github/johncolling/thumbtack`  
+- **Server:** http://10.0.0.53:3456 (systemd user service)  
+- **Git branch:** `master`, clean (HEAD: `bc48b94`)  
+- **Tech stack:** FastAPI + Jinja2 + SQLite + Tailwind CSS + asyncio subprocesses
 
-Server runs at: `http://10.0.0.53:3456`
+**Just done in this session:**
+- Discussed automating context-window hibernation (save → `/new` → resume from RESUME.md)
+- Clean repo — no uncommitted changes (weird `"\\"/"` untracked file, ignore it)
 
----
-
-## What's Working ✅
-
-### UI & Branding
-- **Dark/light theme toggle** — Sidebar switch, persists to `localStorage`, CSS vars swap between dark `#0f1115` and light `#ffffff` palettes
-- **Orange accent (`#ff7f00`)** — All CTA buttons, active tabs, links. Light mode uses `#e56900` (darker orange for contrast)
-- **Ghost watermark logo** — Two-agent SVG icon, orange `#ff7f00` at 8% opacity, fills empty-state area when no project selected. Responsive sizing via `min(127%, 104vh)` — auto-scales to viewport
-- **Neon sidebar divider** — 1px `#ffaa44` core line with `box-shadow` glow layers (1px → 5px spread), creating a bright neon tube effect on the edge between sidebar and main content. No ambient pseudo-layer — pure focused glow.
-- **Two-agent icon (top-left)** — Orange `#ff7f00` base, white specular arc. Functional but still waiting for final glass-candy polish
-- **Conditional empty-state CTA** — "Create your first project" when 0 projects exist; "Add another project" when ≥1 exist
-- **Subtitle: "Multi-agent orchestration"** — Replaced "Agent Orchestrator" everywhere (HTML title, README, code headers)
-
-### Backend
-- **FastAPI** runs clean on port 3456
-- **SQLite DB** (`thumbtack.db`) — projects, agents, tasks, comparisons tables
-- **Project creation** — Bare name auto-nests under `~/thumbtack_projects/<name>`. Absolute paths used as-is.
-- **Directory auto-creation** — `os.makedirs(..., exist_ok=True)` on project create
-- **WebSocket streaming** — `ws://10.0.0.53:3456/ws`, broadcasts `{stream, data}` format
-
-### File Browser
-- **Per-project file tree** — Recursive tree view with expand/collapse, file icons
-- **Breadcrumb navigation** — Click any segment to navigate up
-- **File preview** — Text files rendered with syntax-highlighted line numbers
-- **Folder creation** — "New Folder" button in any directory
-
-### Agent Spawning
-- **6 agent types**: claude, codex, opencode, openclaw, aider, custom
-- **Working directory** set to project path on spawn
-- **WebSocket output** streams live to connected clients
-
-### Task Queue
-- **Add / delete / run / run-all / clear-done**
-- **Per-task run endpoint** — `POST /api/tasks/{id}/run` dispatches to active agent
-
-### Comparison Mode
-- **Backend endpoint** — `POST /api/comparison` spawns two agents side-by-side
-- **Frontend** — Comparison tab with agent selectors and run button
-- **WebSocket format fix** — `sendComparisonCommand` now sends proper `{type, name, prompt, comparison_mode}`
-
-### Git Integration (NEW — this session)
-- **Git tab** in project detail view — 4th tab alongside Agents, Files, Tasks, Comparison
-- **Status endpoint** — `GET /api/projects/{pid}/git/status` → branch, ahead/behind, clean/dirty, file counts (staged / modified / untracked)
-- **Diff endpoint** — `GET /api/projects/{pid}/git/diff?filepath=...` → unified diff with per-line +/-/header parsing
-- **Init endpoint** — `POST /api/projects/{pid}/git/init` → `git init` in project directory
-- **Commit endpoint** — `POST /api/projects/{pid}/git/commit` with `{"message":"..."}` → `git add -A && git commit -m <msg>`
-- **Log endpoint** — `GET /api/projects/{pid}/git/log` → returns structured commit history (hash, short_hash, author, email, date, message) via `git log --oneline --format=fuller --numstat`
-- **UI features**:
-  - Branch badge + clean/modified indicator
-  - File list grouped by status (Staged / Modified / Untracked) with color dots
-  - Click-to-expand per-file diff viewer
-  - "Init Repo" button when no `.git` exists
-  - Commit message input + "Commit" button
-  - Manual refresh
-  - **Commit History panel** — Visual commit graph with orange dots, short hash badges, author, human-readable dates
-  - **Settings panel** — Username, email, token (masked as `••••••••` when saved), remote URL, branch selector. Token is preserved in DB when editing other fields.
-- **SPA catch-all route** — `@app.get("/{path:path}")` redirects any unknown URL back to `/` so client-side routing works
-
-### 3D Rotary Navigation Dial (NEW — this session)
-- **Circular 3D toggle button** in sidebar footer — press in to open, press again to confirm
-- **Orange gradient** with inset shadows, rotates icon 45° when depressed
-- **Mouse-driven rotation** — angular velocity calculated from mouse movement around dial center
-- **Smooth damping** — 12% lerp per frame via `requestAnimationFrame`
-- **Two segments**: Tasks (⚡) and Terminals (💻) at 180° apart
-- **Indicator pointer** at top with pulsing orange glow highlights active selection
-- **Gentle idle drift** when mouse is still (auto-reverses direction)
-- **Labels counter-rotate** to stay upright as dial spins
-- **Click backdrop** to dismiss without navigating
-- **Scalable** — `DIAL_OPTIONS` array supports 8+ future segments
-- **Placeholder pages** at `/tasks` and `/terminals` with sidebar + branded layout
+**Still on the task list:**
+- See `Things to Do.md` in Obsidian vault root for John's running task list
+- Logo glass polish (iOS candy / Aero effect)
+- Task queue / comparison mode polish
+- MCP integration (tool registry)
+- Auth / login wall
+- Mobile responsive layout
 
 ---
 
-## What's Broken / Still Rough ❌
+## ⚙️ CRITICAL ENVIRONMENT FACTS
 
-| Issue | Details |
-|-------|---------|
-| **Logo glass polish** | Still needs iOS candy / Aero glass effect on the two-agent sidebar icon |
-| **Task queue polish** | No status indicators, timestamps, or per-task output storage yet |
-| **Comparison mode** | Side-by-side diff panels work but need polish (syntax highlighting, line numbers) |
-| **Mobile responsive** | Sidebar doesn't collapse on small screens |
-| **MCP integration** | Tool registry not yet built |
-| **Authentication** | No user accounts or session management |
-
----
-
-## Critical Technical Details
-
-| Detail | Value |
-|--------|-------|
-| **Repo** | `github.com/johncolling/thumbtack` |
-| **Port** | `3456` |
-| **Server** | `uvicorn main:app --host 0.0.0.0 --port 3456` |
-| **Static** | `app.mount("/static", StaticFiles(directory="static"), name="static")` |
-| **Templates** | `Jinja2Templates(directory="templates")` |
-| **DB** | `sqlite3.connect("thumbtack.db")` |
-| **Theme toggle** | `#themeToggle` sidebar switch — toggles `light-mode` class on `<html>`, persists to `localStorage.theme` |
-| **Accent color** | `#ff7f00` (orange). Light mode uses `#e56900` for contrast. |
-| **Empty-state IDs** | Two `#emptyState` elements exist — one in `#main`, one in `.main-content`. JS updates both. |
-| **Icon concept** | Two small figures (T-shapes with circle heads) holding hands — represents multi-agent collaboration |
-| **Project paths** | Auto-nest bare names under `~/thumbtack_projects/`. Absolute paths preserved as-is. Tilde `~` expanded. |
-| **Name** | **ThumbTack** (not Thumbtack) — capital T in Tack |
-| **Neon border** | 1px core line with `box-shadow` glow. No `filter: drop-shadow` (renders poorly in some browsers). Spread values: 0px, 1px, 2px, 3px, 5px |
+| Fact | Value |
+|---|---|
+| John's local IP | **10.0.0.53** (not localhost; never use 127.0.0.1) |
+| ThumbTack port | 3456 |
+| Vault root | `/home/administrator/Obsidian Vault/` |
+| Running tasks | `Things to Do.md` at vault root |
+| FastAPI template bug | Use `templates.TemplateResponse(request, "index.html")` (new positional signature); clear cache with `templates.env.cache.clear()` |
+| systemd restart policy | `Restart=on-failure` (never `always`) |
+| Token masking | Frontend sends `"••••••••"` as sentinel; server detects and skips overwrite |
 
 ---
 
-## Known Pitfalls
+## 🔄 SESSION HIBERNATION PROTOCOL (PROPOSED — NOT YET ACTIVE)
 
-1. **Context expiry risk** — This project MUST survive session ends. Always verify code on disk after edits. The repo is the source of truth.
-2. **TemplateResponse bug** — If upgrading FastAPI: use `templates.TemplateResponse(request, "index.html")` NOT the old dict-style. Also `templates.env.cache.clear()` if templates are stale.
-3. **Port 3456 conflict** — If the server won't start, check for old uvicorn processes with `lsof -i :3456` or `ps aux | grep uvicorn`.
-4. **Python cache** — After patching `.py` files, clear `__pycache__` with `find . -type d -name __pycache__ -exec rm -rf {} +` if changes don't seem to take effect.
-5. **Static files** — `app.js` serves from `/static/app.js`. If the browser gets 404, check `main.py` has `app.mount("/static", ...)`.
-6. **WebSocket format** — Backend broadcasts must use `{stream, data}` format. Older format `{type, line}` will break frontend log parsing.
-7. **Two #emptyState elements** — One in `#main`, one in `.main-content`. `getElementById` returns the first. Updates target both via class selectors where needed.
-8. **systemd restart loops** — `Restart=always` causes crash loops during live code edits. Use `Restart=on-failure` instead.
-9. **Token masking** — Token field shows `••••••••` when saved. Frontend detects dots and excludes token from POST to prevent overwriting real token with dot characters.
-10. **SPA routing** — Any unknown URL hits `@app.get("/{path:path}")` which redirects to `/`. This prevents `{"detail":"Not Found"}` on browser refresh at `/project/1`.
+**Goal:** Automated `/new` rotation so context never hits 100%, giving theoretical infinite memory.
+
+**Flow:**
+1. **Save** all active state → this RESUME.md + Hermes memory + Git push
+2. **Inject `/new`** into chat (or local script triggers it)
+3. **Wake** → new session automatically loads this file (via persona/startup injection)
+4. **Resume** → pick up exactly where we left off
+
+**Blockers:**
+- `/new` is a client-side UI command; a Hermes cronjob cannot directly inject it into the active chat thread
+- If using gateway (Discord, Telegram), the cron can `deliver` a message, but that *adds* tokens rather than clearing them
+- Local terminal/tmux: `tmux send-keys -t hermes "/new\" Enter` could script it
+- True automation needs either a custom client script or Hermes gateway-level support
+
+**Current stance:** Semi-auto for now. When context pressure builds, I emit `[CONTEXT_CHECKPOINT_REQUIRED]` and wait for John to `/new`. Then resume from this file.
 
 ---
 
-## Next Session Priority Pick
+## 📋 SERVICES ON r2-d2 (10.0.0.53)
 
-When resuming, the user likely wants **ONE** of these:
+| Service | Port | Status |
+|---|---|---|
+| Thumbtack | 3456 | systemd user, active focus |
+| Horse Racing Data Vault | 80 | systemd user, stable |
+| CloudCLI | 3001 | npx process, stable |
+| Codeg | 3080 | systemd user, needs desktop token |
+| Ollama | 11434 | standalone, local LLM |
+| SSH | 22 | system |
 
-1. **Logo glass polish** — iOS candy / Aero glass effect on sidebar icon
-2. **Task queue polish** — Status indicators, per-task output, timestamps
-3. **Comparison mode polish** — Side-by-side output panels, diff highlighting
-4. **Mobile responsive** — Collapsible sidebar for smaller screens
-5. **MCP integration** — Tool registry and agent tool-calling
+---
 
-**Ask the user which to prioritize.** Don't just start coding — confirm the direction first.
+## 🧠 HERMES STATE
+
+- **Cronjob:** `de57da2a3285` (`thumbtack-autosave`, every 5 min)
+- **Pre-run script:** `~/.hermes/scripts/thumbtack-cron-preamble.py`
+- **Memory targets:** `memory` + Obsidian `Session Snapshots/` + GitHub
+- **User:** John, Bundamba QLD, two kids (Poppy and Kip), prefers R2-D2 persona lightly (drop beep-boop in execution mode)
+- **Persona file location:** Investigate → `~/.hermes/` for `SOUL.md`, startup prompts, etc.
+
+---
+
+## ✅ FIRST ACTIONS ON NEW SESSION
+
+1. **Read this file fully** — you're reading it now ✓
+2. **Read `Things to Do.md`** in vault root — pick the top open item
+3. **Check Thumbtack status** — `systemctl --user status thumbtack`
+4. **Check last autosave** — `cd ~/github/johncolling/thumbtack && git log --oneline -3`
+5. **Ask John** what he wants to work on next
+
+---
+
+*This file is written at the end of every significant session. If the timestamp is fresh, load state from here. If stale (> 15 minutes), treat with caution and ask for confirmation.*
