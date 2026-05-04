@@ -1,7 +1,7 @@
 # ThumbTack — Resume Point
 
-> Last updated: 2026-05-04 22:10 AEST
-> Head commit: `3859c7f` (pushed to github.com/johncolling/thumbtack)
+> Last updated: 2026-05-04 22:14 AEST
+> Head commit: `67a896d` (pushed to github.com/johncolling/thumbtack)
 >
 > Screenshots in README:
 > - `thumbtack-homepage.png` — Dashboard / welcome screen (no project selected)
