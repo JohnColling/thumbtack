@@ -6,13 +6,21 @@ A dark or light-themed web application for spawning and orchestrating AI coding 
 
 ## Screenshots
 
-### Dashboard — Project Browser & Agent Spawner
+### Dashboard — Project Browser
 
 ![ThumbTack Homepage](docs/screenshots/thumbtack-homepage.png)
+
+### Agents — Agent Spawner & Active Agents
+
+![ThumbTack Agents Tab](docs/screenshots/thumbtack-agents-tab.png)
 
 ### Git Integration — Commit History & Repository Status
 
 ![ThumbTack Git Tab](docs/screenshots/thumbtack-git-tab.png)
+
+### Settings — GitHub Credentials & PAT Authentication
+
+![ThumbTack Settings](docs/screenshots/thumbtack-settings.png)
 
 ---
 
