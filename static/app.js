@@ -552,14 +552,18 @@ async function loadGitHubConfig(){
 
 async function saveGitHubConfig(){
     const username = document.getElementById('ghUsername').value.trim();
-    const email = document.getElementById('ghEmail').value.trim();
-    const token = document.getElementById('ghToken').value.trim();
-    const branch = document.getElementById('ghBranch').value.trim() || 'main';
+    const email    = document.getElementById('ghEmail').value.trim();
+    const tokenVal = document.getElementById('ghToken').value.trim();
+    const branch   = document.getElementById('ghBranch').value.trim() || 'main';
     if(!username){ showToast('Username required','error'); return; }
+    const body = { username, email, default_branch: branch };
+    // Only include token if user actually typed a new one (not the masked dots)
+    const isMasked = tokenVal.startsWith('•') || tokenVal === '\u2022\u2022\u2022\u2022\u2022\u2022\u2022';
+    if(tokenVal && !isMasked){ body.token = tokenVal; }
     try{
         await api('/api/github/config',{
             method:'POST', headers:{'Content-Type':'application/json'},
-            body: JSON.stringify({ username, email, token, default_branch: branch })
+            body: JSON.stringify(body)
         });
         showToast('GitHub settings saved');
         toggleSettingsPanel();

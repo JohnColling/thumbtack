@@ -534,14 +534,13 @@ async def get_github_config():
 
 @app.post("/api/github/config")
 async def post_github_config(data: dict):
-    username = data.get("username", "").strip()
-    email = data.get("email", "").strip()
-    token = data.get("token", "").strip()
-    branch = data.get("default_branch", "main").strip()
-    if not username:
-        raise HTTPException(400, "GitHub username required")
+    username = data.get("username","").strip()
+    email    = data.get("email","").strip()
+    token    = data.get("token")   # None if omitted — preserve existing
+    branch   = data.get("default_branch","main").strip()
+    if not username: raise HTTPException(400,"GitHub username required")
     save_github_settings(username, email, token, branch)
-    return {"status": "saved"}
+    return {"status":"saved"}
 
 @app.delete("/api/github/config")
 async def clear_github_config():

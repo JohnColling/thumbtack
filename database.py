@@ -311,13 +311,17 @@ def get_github_settings() -> Dict[str, Any]:
     return dict(row) if row else {}
 
 
-def save_github_settings(username: str, email: str, token: str, default_branch: str = "main") -> bool:
+def save_github_settings(username: str, email: str, token: Optional[str] = None, default_branch: str = "main") -> bool:
     conn = get_db()
     cursor = conn.cursor()
-    now = datetime.now().isoformat()
-    cursor.execute("SELECT id FROM github_settings WHERE id = 1")
-    exists = cursor.fetchone()
-    if exists:
+    now  = datetime.now().isoformat()
+    cursor.execute("SELECT token FROM github_settings WHERE id = 1")
+    existing = cursor.fetchone()
+    if token is None and existing:
+        token = existing[0]           # preserve existing when omitted
+    elif token is None:
+        token = ""
+    if existing:
         cursor.execute(
             "UPDATE github_settings SET username = ?, email = ?, token = ?, default_branch = ?, updated_at = ? WHERE id = 1",
             (username, email, token, default_branch, now)
