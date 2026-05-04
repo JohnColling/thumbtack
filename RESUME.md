@@ -1,4 +1,4 @@
-# Thumbtack — Resume Point
+# ThumbTack — Resume Point
 
 > Last updated: 2026-05-04, evening session
 > Head commit: `f1a7946` (pushed to github.com/johncolling/thumbtack)
@@ -27,6 +27,7 @@ Server runs at: `http://10.0.0.53:3456`
 - **Neon sidebar divider** — 1px `#ffaa44` core line with `box-shadow` glow layers (1px → 5px spread), creating a bright neon tube effect on the edge between sidebar and main content. No ambient pseudo-layer — pure focused glow.
 - **Two-agent icon (top-left)** — Orange `#ff7f00` base, white specular arc. Functional but still waiting for final glass-candy polish
 - **Conditional empty-state CTA** — "Create your first project" when 0 projects exist; "Add another project" when ≥1 exist
+- **Subtitle: "Multi-agent orchestration"** — Replaced "Agent Orchestrator" everywhere (HTML title, README, code headers)
 
 ### Backend
 - **FastAPI** runs clean on port 3456
@@ -61,6 +62,7 @@ Server runs at: `http://10.0.0.53:3456`
 - **Diff endpoint** — `GET /api/projects/{pid}/git/diff?filepath=...` → unified diff with per-line +/-/header parsing
 - **Init endpoint** — `POST /api/projects/{pid}/git/init` → `git init` in project directory
 - **Commit endpoint** — `POST /api/projects/{pid}/git/commit` with `{"message":"..."}` → `git add -A && git commit -m <msg>`
+- **Log endpoint** — `GET /api/projects/{pid}/git/log` → returns structured commit history (hash, short_hash, author, email, date, message) via `git log --oneline --format=fuller --numstat`
 - **UI features**:
   - Branch badge + clean/modified indicator
   - File list grouped by status (Staged / Modified / Untracked) with color dots
@@ -68,67 +70,38 @@ Server runs at: `http://10.0.0.53:3456`
   - "Init Repo" button when no `.git` exists
   - Commit message input + "Commit" button
   - Manual refresh
+  - **Commit History panel** — Visual commit graph with orange dots, short hash badges, author, human-readable dates
+  - **Settings panel** — Username, email, token (masked as `••••••••` when saved), remote URL, branch selector. Token is preserved in DB when editing other fields.
+- **SPA catch-all route** — `@app.get("/{path:path}")` redirects any unknown URL back to `/` so client-side routing works
 
 ---
 
-## Filesystem Structure
+## What's Broken / Still Rough ❌
 
-```
-/home/administrator/
-├── thumbtack_projects/          ← master parent folder
-│   └── <project-name>/          ← auto-created on "Create Project"
-└── github/johncolling/thumbtack/ ← repo
-    ├── main.py                  ← FastAPI app (all endpoints + WebSocket)
-    ├── static/app.js            ← SPA frontend logic
-    ├── templates/
-    │   └── index.html           ← Single-page app (sidebar + main area + all tabs)
-    ├── agent.py                 ← (legacy/orphaned) early agent spawn logic
-    ├── model.py                 ← (legacy/orphaned) early Pydantic models
-    ├── requirements.txt         ← FastAPI, Jinja2, uvicorn, websockets
-    └── thumbtack.db             ← SQLite database
-```
+| Issue | Details |
+|-------|---------|
+| **Logo glass polish** | Still needs iOS candy / Aero glass effect on the two-agent sidebar icon |
+| **Task queue polish** | No status indicators, timestamps, or per-task output storage yet |
+| **Comparison mode** | Side-by-side diff panels work but need polish (syntax highlighting, line numbers) |
+| **Mobile responsive** | Sidebar doesn't collapse on small screens |
+| **MCP integration** | Tool registry not yet built |
+| **Authentication** | No user accounts or session management |
 
 ---
 
-## What's Pending / Broken ⚠️
+## Critical Technical Details
 
-### 1. Icon Glass Effect (POLISH — not blocking)
-The top-left logo needs iOS candy / Windows Aero glass — thick translucent dome with bright white specular highlight. Current version is functional (orange base + white arc) but doesn't quite have that glossy depth.
-
-**Files:** `templates/index.html` — CSS under `/* ── logo ── */`, `.gloss`, `.gleam`, `.rim`
-
-### 2. Auto-Commit Message Suggestions (ENHANCEMENT)
-Currently requires manual commit message input. Could add an "Auto-generate message" button that creates a summary like `WIP — 3 files changed`.
-
-### 3. Git Log / History (NOT BUILT)
-Only current status, diff, and commit are implemented. No `git log` viewing yet.
-
-### 4. MCP Integration (NOT BUILT)
-No MCP tool registry or calling logic.
-
-### 5. Authentication (NOT BUILT)
-Any device on the LAN can currently spawn agents at `10.0.0.53:3456`.
-
-### 6. Mobile Layout (NOT BUILT)
-Sidebar is fixed 280px, content area is desktop-sized. Need responsive breakpoints for sidebar collapse.
-
-### 7. Comparison Mode Frontend Polish
-Tab exists and backend endpoint works, but the side-by-side output display could be richer (e.g., separate panels per agent, diff highlighting).
-
-### 8. Task Queue Frontend Polish
-Task list renders but could use inline status indicators (running / done / failed), timestamps, and per-task output viewing.
-
----
-
-## Key Design Decisions to Preserve
-
-| Decision | Detail |
-|----------|--------|
-| **Accent color** | `#ff7f00` (pure orange). Light mode: `#e56900` |
-| **Dark bg** | `#0f1115` (near-black, slightly blue-tinted) |
-| **Light bg** | `#ffffff` (pure white) |
-| **Sidebar dark** | `#161b22` (GitHub-style dark gray) |
-| **Font** | Inter (Google Fonts) |
+| Detail | Value |
+|--------|-------|
+| **Repo** | `github.com/johncolling/thumbtack` |
+| **Port** | `3456` |
+| **Server** | `uvicorn main:app --host 0.0.0.0 --port 3456` |
+| **Static** | `app.mount("/static", StaticFiles(directory="static"), name="static")` |
+| **Templates** | `Jinja2Templates(directory="templates")` |
+| **DB** | `sqlite3.connect("thumbtack.db")` |
+| **Theme toggle** | `#themeToggle` sidebar switch — toggles `light-mode` class on `<html>`, persists to `localStorage.theme` |
+| **Accent color** | `#ff7f00` (orange). Light mode uses `#e56900` for contrast. |
+| **Empty-state IDs** | Two `#emptyState` elements exist — one in `#main`, one in `.main-content`. JS updates both. |
 | **Icon concept** | Two small figures (T-shapes with circle heads) holding hands — represents multi-agent collaboration |
 | **Project paths** | Auto-nest bare names under `~/thumbtack_projects/`. Absolute paths preserved as-is. Tilde `~` expanded. |
 | **Name** | **ThumbTack** (not Thumbtack) — capital T in Tack |
@@ -145,6 +118,9 @@ Task list renders but could use inline status indicators (running / done / faile
 5. **Static files** — `app.js` serves from `/static/app.js`. If the browser gets 404, check `main.py` has `app.mount("/static", ...)`.
 6. **WebSocket format** — Backend broadcasts must use `{stream, data}` format. Older format `{type, line}` will break frontend log parsing.
 7. **Two #emptyState elements** — One in `#main`, one in `.main-content`. `getElementById` returns the first. Updates target both via class selectors where needed.
+8. **systemd restart loops** — `Restart=always` causes crash loops during live code edits. Use `Restart=on-failure` instead.
+9. **Token masking** — Token field shows `••••••••` when saved. Frontend detects dots and excludes token from POST to prevent overwriting real token with dot characters.
+10. **SPA routing** — Any unknown URL hits `@app.get("/{path:path}")` which redirects to `/`. This prevents `{"detail":"Not Found"}` on browser refresh at `/project/1`.
 
 ---
 
@@ -153,10 +129,9 @@ Task list renders but could use inline status indicators (running / done / faile
 When resuming, the user likely wants **ONE** of these:
 
 1. **Logo glass polish** — iOS candy / Aero glass effect on sidebar icon
-2. **Git log / history** — View past commits in the Git tab
-3. **Task queue polish** — Status indicators, per-task output, timestamps
-4. **Comparison mode polish** — Side-by-side output panels, diff highlighting
-5. **Mobile responsive** — Collapsible sidebar for smaller screens
-6. **MCP integration** — Tool registry and agent tool-calling
+2. **Task queue polish** — Status indicators, per-task output, timestamps
+3. **Comparison mode polish** — Side-by-side output panels, diff highlighting
+4. **Mobile responsive** — Collapsible sidebar for smaller screens
+5. **MCP integration** — Tool registry and agent tool-calling
 
 **Ask the user which to prioritize.** Don't just start coding — confirm the direction first.

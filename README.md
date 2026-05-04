@@ -1,4 +1,4 @@
-# ThumbTack — Agent Orchestrator
+# ThumbTack — Multi-agent orchestration
 
 A dark or light-themed web application for spawning and orchestrating AI coding agents. Built with **FastAPI**, **Jinja2**, **SQLite**, and **asyncio subprocesses** — with GitHub integration.
 

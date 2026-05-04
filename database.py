@@ -1,4 +1,4 @@
-"""Thumbtack – Multi-Agent Orchestrator Dashboard.
+"""Thumbtack – Multi-agent orchestration Dashboard.
 
 File: database.py
 SQLite database layer for Thumbtack orchestrator.

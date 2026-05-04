@@ -1,5 +1,5 @@
 """
-Thumbtack v1.1 — Multi-Agent Orchestrator
+Thumbtack v1.1 — Multi-agent orchestration
 File browser · Agent comparison · Task queue
 """
 import os, asyncio, subprocess, sqlite3, json
