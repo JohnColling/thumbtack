@@ -685,6 +685,19 @@ async def git_log(pid: int, limit: int = Query(50)):
 async def health(): return {"status":"ok","agents":len(ACTIVE)}
 
 # Catch-all SPA redirect
+# ─── Placeholder Pages ───
+
+@app.get("/tasks", response_class=HTMLResponse)
+async def tasks_page(request: Request):
+    """Task management dashboard (placeholder)."""
+    return templates.TemplateResponse(request, "index.html")
+
+@app.get("/terminals", response_class=HTMLResponse)
+async def terminals_page(request: Request):
+    """Terminal management dashboard (placeholder)."""
+    return templates.TemplateResponse(request, "index.html")
+
+
 @app.get("/{path:path}", response_class=HTMLResponse)
 async def spa_catchall(r: Request, path: str):
     return templates.TemplateResponse(r, "index.html")

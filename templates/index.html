@@ -854,7 +854,6 @@
                     <div class="subtitle">Multi-agent orchestration</div>
                 </div>
             </div>
-            <button class="settings-btn" onclick="toggleSettingsPanel()" title="Settings">&#x2699;</button>
         </div>
         <!-- Settings Panel -->
         <div class="settings-panel" id="settingsPanel" style="display:none">
@@ -897,14 +896,25 @@
             </div>
         </div>
         <div class="sidebar-footer">
+            <!-- Settings Button (formerly in header) -->
+            <button class="settings-btn" onclick="toggleSettingsPanel()" title="Settings">&#x2699;</button>
+            <!-- 3D Nav Dial Button -->
+            <button class="nav-dial-btn" id="navDialBtn" onclick="toggleNavDial()" title="Navigate">
+                <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M12 1v6M12 17v6M4.22 4.22l4.24 4.24M15.54 15.54l4.24 4.24M1 12h6M17 12h6M4.22 19.78l4.24-4.24M15.54 8.46l4.24-4.24"/>
+                </svg>
+            </button>
             <div class="theme-toggle">
-                <span>🌙</span>
+                <span>&#x1f319;</span>
                 <label class="switch">
                     <input type="checkbox" id="themeToggle" onchange="toggleTheme()">
                     <span class="slider"></span>
                 </label>
-                <span>☀️</span>
+                <span>&#x2600;&#xfe0f;</span>
             </div>
+            v1.1.0 &bull; File Browser + Comparison + Task Queue
+        </div>
             v1.1.0 &bull; File Browser + Comparison + Task Queue
         </div>
     </div>

@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ThumbTack — Tasks</title>
+    <style>
+        :root {
+            --bg0: #0d1117; --bg1: #161b22; --bg2: #1c2128; --bg3: #21262d;
+            --border: #30363d; --fg: #c9d1d9; --fg-dim: #8b949e;
+            --accent: #ff7f00; --accent2: #3fb950; --accent3: #f0883e; --accent4: #f85149;
+        }
+        html.light {
+            --bg0: #ffffff; --bg1: #f6f8fa; --bg2: #eaeef2; --bg3: #d0d7de;
+            --border: #d8dee4; --fg: #24292f; --fg-dim: #656d76;
+            --accent: #e56900; --accent2: #1a7f37; --accent3: #9a6700; --accent4: #cf222e;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background: radial-gradient(ellipse 80% 60% at 20% 30%, rgba(255,127,0,0.08) 0%, transparent 60%),
+                radial-gradient(ellipse 60% 80% at 80% 70%, rgba(255,94,0,0.06) 0%, transparent 50%),
+                linear-gradient(165deg, #0c0d10 0%, #111216 40%, #0f1014 70%, #181316 100%);
+            background-size: cover; color: var(--fg); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace;
+            height: 100vh; overflow: hidden; display: flex;
+        }
+        .sidebar {
+            width: 280px; background: var(--bg1); position: relative; display: flex; flex-direction: column;
+        }
+        .sidebar::after {
+            content: ''; position: absolute; top: 0; right: -1px; width: 1px; height: 100%;
+            background: #ffaa44;
+            box-shadow: 0 0 0px 1px rgba(255,127,0,1.0), 0 0 2px 1px rgba(255,127,0,0.95), 0 0 4px 2px rgba(255,127,0,0.7), 0 0 8px 3px rgba(255,127,0,0.4), 0 0 12px 4px rgba(255,127,0,0.2);
+            animation: neon-pulse 3.5s ease-in-out infinite; z-index: 10;
+        }
+        @keyframes neon-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+        .sidebar-header { padding: 20px 18px 12px; border-bottom: 1px solid var(--border); display: flex; align-items: flex-start; gap: 10px; }
+        .sidebar-header .logo { width: 36px; height: 36px; border-radius: 9px; display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; background: radial-gradient(ellipse 75% 70% at 50% 85%, #ff5500 0%, #ff7a00 40%, #ffa940 100%); box-shadow: 0 2px 6px rgba(0,0,0,0.35), inset -1px -1px 2px rgba(0,0,0,0.3), inset 1px 1px 2px rgba(255,255,255,0.6); }
+        .sidebar-header .logo svg { width: 22px; height: 22px; position: relative; z-index: 1; filter: drop-shadow(0 1px 1px rgba(0,0,0,0.2)); }
+        .sidebar-header h1 { font-size: 15px; font-weight: 600; }
+        .sidebar-header .subtitle { font-size: 11px; color: var(--fg-dim); }
+        .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: rgba(22, 24, 30, 0.35); backdrop-filter: blur(24px); position: relative; }
+        .main-header { padding: 16px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+        .main-header h2 { font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+        .content { flex: 1; padding: 40px; overflow-y: auto; }
+        .placeholder-card { background: var(--bg1); border: 1px solid var(--border); border-radius: 12px; padding: 40px; max-width: 600px; margin: 0 auto; text-align: center; }
+        .placeholder-card h3 { font-size: 20px; margin-bottom: 12px; color: var(--accent); }
+        .placeholder-card p { color: var(--fg-dim); font-size: 14px; line-height: 1.6; }
+        .back-link { display: inline-flex; align-items: center; gap: 6px; margin-top: 20px; color: var(--accent); text-decoration: none; font-size: 13px; font-weight: 600; }
+        .back-link:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <div class="logo">
+                <svg viewBox="0 0 100 100" width="22" height="22"><rect x="22" y="32" width="12" height="58" rx="5.5" fill="white"/><circle cx="28" cy="20" r="12" fill="white"/><rect x="34" y="42" width="10" height="5.5" rx="2" fill="white" opacity="0.9"/><rect x="66" y="32" width="12" height="58" rx="5.5" fill="white"/><circle cx="72" cy="20" r="12" fill="white"/><rect x="56" y="42" width="10" height="5.5" rx="2" fill="white" opacity="0.9"/><circle cx="50" cy="50" r="7" fill="white" opacity="0.95"/></svg>
+            </div>
+            <div><h1>ThumbTack</h1><div class="subtitle">Multi-agent orchestration</div></div>
+        </div>
+    </div>
+    <div class="main">
+        <div class="main-header"><h2><span>&#x26a1;</span> Tasks</h2></div>
+        <div class="content">
+            <div class="placeholder-card">
+                <h3>Task Dashboard</h3>
+                <p>This is a placeholder for the upcoming Task Management dashboard.<br>Here you will be able to view, organize, and manage all queued tasks across all projects and agents.</p>
+                <a href="/" class="back-link">&#x2190; Back to Home</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
