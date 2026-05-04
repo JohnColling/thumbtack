@@ -117,7 +117,8 @@ async function selectProject(id){
     renderAgentsPanel(data.agents||[]);
     loadFileBrowser('');
     loadTaskQueue();
-    if(currentTheme==='git') loadGitStatus();
+    // Load git status if git tab is active
+    if(document.querySelector('.tab[data-tab="git"].active')) loadGitStatus();
 }
 
 async function deleteProject(id){if(!confirm('Delete this project and all its agents?'))return;await api(`/api/projects/${id}`,{method:'DELETE'});currentProject=null;$('#emptyState').style.display='flex';$('#mainHeader h2').innerHTML='<span>&#x1f680;</span> Select a project';$('#headerActions').innerHTML='';showToast('Project deleted');await loadProjects();}
@@ -330,6 +331,131 @@ window.addEventListener('DOMContentLoaded',()=>{
     loadProjects();
     document.addEventListener('keydown',e=>{if(e.key==='Escape'){hideModal('newProjectModal');hideModal('fileModal');}});
 });
+// ─── Git ───
+let gitState = {repo_exists:false,branch:'',is_dirty:false,modified:[],untracked:[],staged:[]};
+let gitDiffCache = {};
+
+async function loadGitStatus(){
+    if(!currentProject) return;
+    const sb = $('#gitStatusBar');
+    const initBtn = $('#gitInitBtn');
+    const commitGroup = $('#gitCommitGroup');
+    const panel = $('#gitPanel');
+    sb.innerHTML = '<span style="color:var(--fg-dim)">Loading git status...</span>';
+    initBtn.style.display = 'none';
+    commitGroup.style.display = 'none';
+    try{
+        const data = await api(`/api/projects/${currentProject.id}/git/status`);
+        gitState = data;
+        if(!data.repo_exists){
+            sb.innerHTML = `<span style="color:var(--fg-dim)">No git repository</span>`;
+            initBtn.style.display = '';
+            panel.innerHTML = '<p style="color:var(--fg-dim);font-size:13px;padding:40px 0;text-align:center">No repository yet. Click "Init Repo" to initialize git.</p>';
+            return;
+        }
+        initBtn.style.display = 'none';
+        commitGroup.style.display = '';
+        const branchBadge = `<span class="git-badge branch">${escapeHtml(data.branch||'unknown')}</span>`;
+        const cleanBadge = data.is_dirty ? '<span class="git-badge dirty">unsaved changes</span>' : '<span class="git-badge clean">clean</span>';
+        const counts = [];
+        if(data.modified?.length) counts.push(`${data.modified.length} modified`);
+        if(data.untracked?.length) counts.push(`${data.untracked.length} untracked`);
+        if(data.staged?.length) counts.push(`${data.staged.length} staged`);
+        const countTxt = counts.length ? ' · ' + counts.join(', ') : '';
+        sb.innerHTML = branchBadge + cleanBadge + `<span style="color:var(--fg-dim);font-size:12px">${countTxt}</span>`;
+        renderGitPanel();
+    }catch(e){
+        sb.innerHTML = `<span style="color:var(--accent4)">Error loading git status</span>`;
+        panel.innerHTML = `<p style="color:var(--accent4);padding:20px">${escapeHtml(e.message||'Failed to load git status')}</p>`;
+    }
+}
+
+function renderGitPanel(){
+    const panel = $('#gitPanel');
+    const data = gitState;
+    if(!data.repo_exists){
+        panel.innerHTML = '<p style="color:var(--fg-dim);font-size:13px;padding:40px 0;text-align:center">No repository yet.</p>';
+        return;
+    }
+    let html = '';
+    const sections = [];
+    if(data.staged?.length) sections.push({label:'Staged',items:data.staged,ind:'added',icon:'+'});
+    if(data.modified?.length) sections.push({label:'Modified',items:data.modified,ind:'modified',icon:'~'});
+    if(data.untracked?.length) sections.push({label:'Untracked',items:data.untracked,ind:'untracked',icon:'?'});
+    if(!sections.length){
+        html = '<div style="padding:60px 0;text-align:center;color:var(--fg-dim)"><div style="font-size:32px;margin-bottom:12px;opacity:.3">&#x2705;</div><p>Working tree clean</p></div>';
+    }else{
+        for(const sec of sections){
+            html += `<div class="git-file-group"><h5>${escapeHtml(sec.label)} (${sec.items.length})</h5>`;
+            for(const f of sec.items){
+                const fileId = 'diff-' + f.replace(/[^a-z0-9]/gi,'_');
+                html += `<div class="git-file-item" onclick="toggleGitDiff('${escapeJs(f)}','${fileId}')">
+                    <span class="indicator ${sec.ind}">${sec.icon}</span>
+                    <span class="fname">${escapeHtml(f)}</span>
+                    <span style="color:var(--fg-dim);font-size:11px">show diff &#x25bc;</span>
+                 </div>
+                 <div class="git-diff-box" id="${fileId}" style="display:none"></div>`;
+            }
+            html += '</div>';
+        }
+    }
+    panel.innerHTML = html;
+}
+
+async function toggleGitDiff(filepath, elemId){
+    const box = $('#'+elemId);
+    if(!box) return;
+    if(box.style.display !== 'none'){ box.style.display='none'; return; }
+    box.style.display = '';
+    if(gitDiffCache[filepath]){
+        box.innerHTML = gitDiffCache[filepath];
+        return;
+    }
+    box.innerHTML = '<span style="color:var(--fg-dim)">Loading diff...</span>';
+    try{
+        const data = await api(`/api/projects/${currentProject.id}/git/diff?filepath=${encodeURIComponent(filepath)}`);
+        let content = '';
+        if(data.empty){
+            content = '<span style="color:var(--fg-dim)">No diff available.</span>';
+        }else{
+            content = escapeHtml(data.diff).replace(/^\u002b([^\n]+)/gm, '<span class="diff-add">+$1</span>')
+                                           .replace(/^\u002d([^\n]+)/gm, '<span class="diff-rem">-$1</span>')
+                                           .replace(/^@@[^\n]+/gm, '<span class="diff-hdr">$\u0026</span>');
+        }
+        gitDiffCache[filepath] = content;
+        box.innerHTML = content;
+    }catch(e){
+        box.innerHTML = '<span style="color:var(--accent4)">Failed to load diff</span>';
+    }
+}
+
+async function gitInit(){
+    if(!currentProject) return;
+    showToast('Initializing repository...');
+    try{
+        const data = await api(`/api/projects/${currentProject.id}/git/init`,{method:'POST'});
+        showToast(data.status === 'initialized' ? 'Git initialized!' : 'Already initialized');
+        await loadGitStatus();
+    }catch(e){ showToast('Failed to init repo','error'); }
+}
+
+async function gitCommit(){
+    if(!currentProject) return;
+    const msg = $('#commitMessage').value.trim();
+    if(!msg){ showToast('Enter a commit message','error'); return; }
+    showToast('Committing...');
+    try{
+        const data = await api(`/api/projects/${currentProject.id}/git/commit`,{
+            method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({message:msg})
+        });
+        $('#commitMessage').value='';
+        if(data.status==='committed') showToast('Committed: '+msg);
+        else showToast(data.message||'Nothing to commit','warn');
+        gitDiffCache = {};
+        await loadGitStatus();
+    }catch(e){ showToast('Commit failed: '+e.message,'error'); }
+}
+
 // Expose for inline onclicks
 window.selectProject=selectProject;
 window.createProject=createProject;
@@ -354,3 +480,7 @@ window.deleteTask=deleteTask;
 window.runTask=runTask;
 window.runAllTasks=runAllTasks;
 window.clearCompletedTasks=clearCompletedTasks;
+window.toggleGitDiff=toggleGitDiff;
+window.loadGitStatus=loadGitStatus;
+window.gitCommit=gitCommit;
+window.gitInit=gitInit;
