@@ -13,7 +13,7 @@
             --border: #30363d;
             --fg: #c9d1d9;
             --fg-dim: #8b949e;
-            --accent: #58a6ff;
+            --accent: #ff7f00;
             --accent2: #3fb950;
             --accent3: #f0883e;
             --accent4: #f85149;
@@ -27,7 +27,7 @@
             --border: #d8dee4;
             --fg: #24292f;
             --fg-dim: #656d76;
-            --accent: #0969da;
+            --accent: #e56900;
             --accent2: #1a7f37;
             --accent3: #9a6700;
             --accent4: #cf222e;
@@ -235,12 +235,28 @@
             position: relative;
             z-index: 1;
         }
-        .ghost-logo {
-            width: 280px; height: 280px;
-            display: flex; align-items: center; justify-content: center;
-            opacity: 0.15;
-            filter: drop-shadow(0 0 20px var(--accent));
-            margin-bottom: 8px;
+        .ghost-watermark {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+            z-index: 0;
+        }
+        .ghost-watermark svg {
+            width: min(110%, 90vh);
+            height: min(110%, 90vh);
+            filter: drop-shadow(0 0 80px rgba(255,255,255,0.05));
+        }
+        .empty-content {
+            position: relative;
+            z-index: 1;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
         }
         .empty-state h3 { font-size: 16px; font-weight: 600; color: var(--fg); }
         .empty-state p { font-size: 13px; max-width: 320px; text-align: center; }
@@ -650,31 +666,34 @@
         </div>
 
         <!-- Empty State -->
-        <div class="empty-state" id="emptyState">
-            <!-- ghost watermark: big transparent two-agent icon -->
-            <div class="ghost-logo">
-                <svg viewBox="0 0 100 100" width="180" height="180" aria-hidden="true">
+        <div class="empty-state" id="emptyState" style="position:relative;overflow:hidden;">
+            <!-- Massive ghost watermark filling main area -->
+            <div class="ghost-watermark">
+                <svg viewBox="0 0 100 100" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
                     <!-- Body left -->
-                    <rect x="22" y="32" width="12" height="58" rx="5.5" fill="#ff7f00" opacity="0.35"/>
+                    <rect x="22" y="32" width="12" height="58" rx="5.5" fill="white" opacity="0.03"/>
                     <!-- Head left -->
-                    <circle cx="28" cy="20" r="12" fill="#ff7f00" opacity="0.40"/>
+                    <circle cx="28" cy="20" r="12" fill="white" opacity="0.04"/>
                     <!-- Arms reaching in -->
-                    <rect x="34" y="42" width="10" height="5.5" rx="2" fill="#ff7f00" opacity="0.30"/>
+                    <rect x="34" y="42" width="10" height="5.5" rx="2" fill="white" opacity="0.025"/>
                     <!-- Body right -->
-                    <rect x="66" y="32" width="12" height="58" rx="5.5" fill="#ff7f00" opacity="0.35"/>
+                    <rect x="66" y="32" width="12" height="58" rx="5.5" fill="white" opacity="0.03"/>
                     <!-- Head right -->
-                    <circle cx="72" cy="20" r="12" fill="#ff7f00" opacity="0.40"/>
+                    <circle cx="72" cy="20" r="12" fill="white" opacity="0.04"/>
                     <!-- Arms reaching in -->
-                    <rect x="56" y="42" width="10" height="5.5" rx="2" fill="#ff7f00" opacity="0.30"/>
+                    <rect x="56" y="42" width="10" height="5.5" rx="2" fill="white" opacity="0.025"/>
                     <!-- Hands clasped -->
-                    <circle cx="50" cy="44.5" r="5" fill="#ff7f00" opacity="0.35"/>
+                    <circle cx="50" cy="44.5" r="5" fill="white" opacity="0.03"/>
                 </svg>
             </div>
-            <h3>Welcome to ThumbTack</h3>
-            <p>Create a project to start orchestrating AI coding agents.</p>
-            <button class="new-project-btn" onclick="showNewProjectModal()" style="margin-top:8px">
-                <span>+</span> Create your first project
-            </button>
+            <!-- Text sits on top -->
+            <div class="empty-content">
+                <h3>Welcome to ThumbTack</h3>
+                <p>Create a project to start orchestrating AI coding agents.</p>
+                <button class="new-project-btn" onclick="showNewProjectModal()" style="margin-top:8px">
+                    <span>+</span> Create your first project
+                </button>
+            </div>
         </div>
 
         <!-- Project View -->
