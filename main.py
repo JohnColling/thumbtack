@@ -690,12 +690,12 @@ async def health(): return {"status":"ok","agents":len(ACTIVE)}
 @app.get("/tasks", response_class=HTMLResponse)
 async def tasks_page(request: Request):
     """Task management dashboard (placeholder)."""
-    return templates.TemplateResponse(request, "index.html")
+    return templates.TemplateResponse(request, "tasks.html")
 
 @app.get("/terminals", response_class=HTMLResponse)
 async def terminals_page(request: Request):
     """Terminal management dashboard (placeholder)."""
-    return templates.TemplateResponse(request, "index.html")
+    return templates.TemplateResponse(request, "terminals.html")
 
 
 @app.get("/{path:path}", response_class=HTMLResponse)

@@ -192,12 +192,74 @@
             text-align: center;
         }
         .project-item.active .count { background: var(--accent); color: white; }
+        /* ─── Sidebar Footer ─── */
         .sidebar-footer {
             padding: 12px 16px;
             border-top: 1px solid var(--border);
             font-size: 11px;
             color: var(--fg-dim);
             text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+        .sidebar-footer-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            width: 100%;
+        }
+        .sidebar-footer-version {
+            font-size: 10px;
+            opacity: 0.7;
+        }
+
+        /* ─── 3D Nav Dial Button ─── */
+        .nav-dial-btn {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--accent);
+            color: white;
+            position: relative;
+            transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+            /* 3D push effect — raised out */
+            box-shadow:
+                0 4px 0 #cc5500,
+                0 6px 8px rgba(0,0,0,0.35),
+                inset 0 1px 0 rgba(255,255,255,0.25),
+                inset 0 -1px 0 rgba(0,0,0,0.1);
+            transform: translateY(0);
+        }
+        .nav-dial-btn svg {
+            width: 22px;
+            height: 22px;
+            pointer-events: none;
+            transition: transform 0.2s ease;
+        }
+        .nav-dial-btn:active {
+            transform: translateY(4px);
+            box-shadow:
+                0 0 0 #cc5500,
+                0 1px 2px rgba(0,0,0,0.2),
+                inset 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .nav-dial-btn.pressed {
+            transform: translateY(4px);
+            box-shadow:
+                0 0 0 #cc5500,
+                0 1px 2px rgba(0,0,0,0.2),
+                inset 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .nav-dial-btn.pressed svg {
+            transform: rotate(45deg);
         }
 
         /* Main */
@@ -815,6 +877,123 @@
         .git-log-author { color: var(--accent3); font-weight: 600; }
         .git-log-date { color: var(--fg-dim); }
         
+        /* ─── Rotary Dial Overlay ─── */
+        .dial-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 300;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0,0,0,0.4);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+        }
+        .dial-overlay.active { display: flex; }
+        .dial-container {
+            position: relative;
+            width: 280px;
+            height: 280px;
+            animation: dialPopIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        @keyframes dialPopIn {
+            from { transform: scale(0.3); opacity: 0; }
+            to   { transform: scale(1); opacity: 1; }
+        }
+        .dial-ring {
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+            background:
+                radial-gradient(circle at 35% 30%, rgba(255,255,255,0.15) 0%, transparent 40%),
+                radial-gradient(circle at 65% 70%, rgba(255,140,0,0.1) 0%, transparent 50%),
+                linear-gradient(145deg, #2a2e36 0%, #1e2128 50%, #15171d 100%);
+            box-shadow:
+                0 8px 32px rgba(0,0,0,0.5),
+                inset 0 2px 4px rgba(255,255,255,0.08),
+                inset 0 -2px 4px rgba(0,0,0,0.3);
+            border: 2px solid var(--border);
+        }
+        .dial-center {
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 64px; height: 64px;
+            margin: -32px 0 0 -32px;
+            border-radius: 50%;
+            background: var(--bg2);
+            border: 2px solid var(--border);
+            box-shadow:
+                inset 0 2px 6px rgba(0,0,0,0.3),
+                0 2px 4px rgba(255,255,255,0.05);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+        }
+        .dial-center::after {
+            content: '';
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: var(--accent);
+            box-shadow: 0 0 8px var(--accent);
+        }
+        .dial-notch {
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 0; height: 0;
+            z-index: 5;
+        }
+        .dial-notch::before {
+            content: '';
+            position: absolute;
+            top: -4px; left: -3px;
+            width: 6px; height: 12px;
+            background: var(--accent);
+            border-radius: 3px;
+            box-shadow: 0 0 8px var(--accent);
+            transform: translateY(-118px);
+        }
+        .dial-option {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform-origin: 0 0;
+            z-index: 6;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .dial-option-label {
+            position: absolute;
+            white-space: nowrap;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--fg-dim);
+            padding: 6px 14px;
+            border-radius: 20px;
+            background: var(--bg2);
+            border: 1px solid var(--border);
+            transition: all 0.2s ease;
+            transform: translate(-50%, -50%);
+        }
+        .dial-option.active .dial-option-label {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+            box-shadow: 0 0 16px rgba(255,127,0,0.4);
+            transform: translate(-50%, -50%) scale(1.08);
+        }
+        .dial-option:hover .dial-option-label {
+            border-color: var(--accent);
+            color: var(--fg);
+        }
+        .dial-close-hint {
+            position: absolute;
+            bottom: -40px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 11px;
+            color: var(--fg-dim);
+            opacity: 0.8;
+        }
         /* Scrollbar */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
@@ -896,26 +1075,43 @@
             </div>
         </div>
         <div class="sidebar-footer">
-            <!-- Settings Button (formerly in header) -->
-            <button class="settings-btn" onclick="toggleSettingsPanel()" title="Settings">&#x2699;</button>
             <!-- 3D Nav Dial Button -->
             <button class="nav-dial-btn" id="navDialBtn" onclick="toggleNavDial()" title="Navigate">
-                <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="3"/>
-                    <path d="M12 1v6M12 17v6M4.22 4.22l4.24 4.24M15.54 15.54l4.24 4.24M1 12h6M17 12h6M4.22 19.78l4.24-4.24M15.54 8.46l4.24-4.24"/>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="3"/><path d="M12 1v6M12 17v6M4.22 4.22l4.24 4.24M15.54 15.54l4.24 4.24M1 12h6M17 12h6M4.22 19.78l4.24-4.24M15.54 8.46l4.24-4.24"/>
                 </svg>
             </button>
-            <div class="theme-toggle">
-                <span>&#x1f319;</span>
-                <label class="switch">
-                    <input type="checkbox" id="themeToggle" onchange="toggleTheme()">
-                    <span class="slider"></span>
-                </label>
-                <span>&#x2600;&#xfe0f;</span>
+            <div class="sidebar-footer-row">
+                <!-- Settings Button -->
+                <button class="settings-btn" onclick="toggleSettingsPanel()" title="Settings">&#x2699;</button>
+                <div class="theme-toggle">
+                    <span>&#x1f319;</span>
+                    <label class="switch">
+                        <input type="checkbox" id="themeToggle" onchange="toggleTheme()">
+                        <span class="slider"></span>
+                    </label>
+                    <span>&#x2600;&#xfe0f;</span>
+                </div>
             </div>
-            v1.1.0 &bull; File Browser + Comparison + Task Queue
+            <div class="sidebar-footer-version">
+                v1.1.0 &bull; Built by R2-D2 with Vibing by John Colling
+            </div>
         </div>
-            v1.1.0 &bull; File Browser + Comparison + Task Queue
+    </div>
+
+    <!-- Rotary Dial Navigation Overlay -->
+    <div class="dial-overlay" id="dialOverlay" onclick="closeNavDial(event)">
+        <div class="dial-container" id="dialContainer">
+            <div class="dial-ring"></div>
+            <div class="dial-center"></div>
+            <div class="dial-notch"></div>
+            <div class="dial-option" id="dialOption0" onclick="selectDialOption(0)">
+                <span class="dial-option-label">Terminals</span>
+            </div>
+            <div class="dial-option" id="dialOption1" onclick="selectDialOption(1)">
+                <span class="dial-option-label">Tasks</span>
+            </div>
+            <div class="dial-close-hint">Click the button again to close</div>
         </div>
     </div>
 

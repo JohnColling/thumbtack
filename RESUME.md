@@ -1,7 +1,13 @@
 # ThumbTack — Resume Point
 
 > Last updated: 2026-05-04, evening session
-> Head commit: `f1a7946` (pushed to github.com/johncolling/thumbtack)
+> Head commit: `da5f2da` (pushed to github.com/johncolling/thumbtack)
+>
+> Screenshots in README:
+> - `thumbtack-homepage.png` — Dashboard / welcome screen (no project selected)
+> - `thumbtack-agents-tab.png` — Agents tab with 6 agent spawn cards
+> - `thumbtack-git-tab.png` — Git tab with status, commit history, remote linking
+> - `thumbtack-settings.png` — Settings panel with GitHub credentials (username, email, token, branch)
 
 ---
 
