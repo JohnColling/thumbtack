@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Thumbtack — Agent Orchestrator</title>
+    <title>ThumbTack — Agent Orchestrator</title>
     <style>
         :root {
             --bg0: #0d1117;
@@ -19,9 +19,28 @@
             --accent4: #f85149;
             --warn: #d29922;
         }
+        html.light {
+            --bg0: #ffffff;
+            --bg1: #f6f8fa;
+            --bg2: #eaeef2;
+            --bg3: #d0d7de;
+            --border: #d8dee4;
+            --fg: #24292f;
+            --fg-dim: #656d76;
+            --accent: #0969da;
+            --accent2: #1a7f37;
+            --accent3: #9a6700;
+            --accent4: #cf222e;
+            --warn: #9a6700;
+        }
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
-            background: var(--bg0);
+            background:
+                radial-gradient(ellipse 80% 60% at 20% 30%, rgba(255,127,0,0.08) 0%, transparent 60%),
+                radial-gradient(ellipse 60% 80% at 80% 70%, rgba(255,94,0,0.06) 0%, transparent 50%),
+                radial-gradient(ellipse 50% 50% at 50% 50%, rgba(255,127,0,0.04) 0%, transparent 70%),
+                linear-gradient(165deg, #0c0d10 0%, #111216 40%, #0f1014 70%, #181316 100%);
+            background-size: cover;
             color: var(--fg);
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace;
             height: 100vh;
@@ -44,11 +63,83 @@
             gap: 10px;
         }
         .sidebar-header .logo {
-            width: 32px; height: 32px;
-            background: linear-gradient(135deg, var(--accent), var(--accent2));
-            border-radius: 8px;
+            width: 36px; height: 36px;
+            border-radius: 9px;
             display: flex; align-items: center; justify-content: center;
-            font-weight: bold; font-size: 14px; color: white;
+            overflow: hidden;
+            position: relative;
+            /* === FLUORO ORANGE BASE === */
+            background:
+                radial-gradient(ellipse 80% 70% at 50% 80%, #ff3d00 0%, #ff6600 40%, #ff9500 100%);
+            box-shadow:
+                /* Lift off the page */
+                0 3px 8px rgba(0,0,0,0.4),
+                /* Outer dark edge (inset means bevel) */
+                inset -2px -2px 4px rgba(0,0,0,0.4),
+                /* Outer top-left highlight chrome edge */
+                inset 2px 2px 3px rgba(255,255,255,0.7);
+        }
+        /* === GLASS SHEEN OVERLAY — translucent white, so orange shows through === */
+        .sidebar-header .logo .glass {
+            position: absolute; inset: 0;
+            border-radius: 9px;
+            background:
+                linear-gradient(160deg,
+                    rgba(255,255,255,0.5) 0%,
+                    rgba(255,255,255,0.08) 40%,
+                    rgba(255,255,255,0.0) 55%,
+                    rgba(255,255,255,0.05) 100%);
+            /* Inner bevel dark on bottom, light on top */
+            box-shadow:
+                inset 0 -3px 6px rgba(50,20,0,0.25),
+                inset 0 2px 4px rgba(255,255,255,0.35);
+            pointer-events: none;
+            z-index: 2;
+        }
+        /* === PRIMARY GLOSS CURVE — big bright arc across top === */
+        .sidebar-header .logo .gloss {
+            position: absolute;
+            top: 0; left: 5%; right: 5%;
+            height: 56%;
+            border-radius: 50% 50% 50% 50% / 80% 80% 20% 20%;
+            background: radial-gradient(ellipse 65% 55% at 50% 10%,
+                rgba(255,255,255,0.95) 0%,
+                rgba(255,255,255,0.65) 25%,
+                rgba(255,255,255,0.0) 65%);
+            pointer-events: none;
+            z-index: 3;
+        }
+        /* === SECONDARY TIGHT GLEAM — smaller crisp highlight === */
+        .sidebar-header .logo .gleam {
+            position: absolute;
+            top: 2px; left: 18%; right: 25%;
+            height: 10px;
+            border-radius: 50% 50% 40% 40%;
+            background: linear-gradient(180deg,
+                rgba(255,255,255,0.85) 0%,
+                rgba(255,255,255,0.2) 100%);
+            filter: blur(0.5px);
+            pointer-events: none;
+            z-index: 4;
+        }
+        /* === TOP RIM EDGE HIGHLIGHT === */
+        .sidebar-header .logo .rim {
+            position: absolute;
+            top: 0.5px; left: 8%; right: 8%;
+            height: 1.5px;
+            border-radius: 999px;
+            background: rgba(255,255,255,0.95);
+            filter: blur(0.3px);
+            pointer-events: none;
+            z-index: 5;
+        }
+        .sidebar-header .logo svg {
+            width: 22px;
+            height: 22px;
+            position: relative;
+            z-index: 1;
+            /* Slight warm tint so they belong INSIDE the orange */
+            filter: drop-shadow(0 1px 1px rgba(80,20,0,0.25));
         }
         .sidebar-header h1 { font-size: 15px; font-weight: 600; }
         .sidebar-header .subtitle { font-size: 11px; color: var(--fg-dim); }
@@ -108,6 +199,21 @@
             display: flex;
             flex-direction: column;
             overflow: hidden;
+            background: rgba(22, 24, 30, 0.35);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            position: relative;
+        }
+        /* subtle inner glow on main area */
+        .main::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            pointer-events: none;
+            background:
+                radial-gradient(ellipse 70% 40% at 30% 20%, rgba(255,127,0,0.025) 0%, transparent 60%),
+                radial-gradient(ellipse 50% 50% at 70% 80%, rgba(255,94,0,0.02) 0%, transparent 50%);
+            z-index: 0;
         }
         .main-header {
             padding: 16px 24px;
@@ -135,7 +241,6 @@
         .btn.success { background: var(--accent2); color: var(--bg0); border-color: var(--accent2); }
         .btn.warn { background: var(--warn); color: var(--bg0); border-color: var(--warn); }
 
-        /* Empty state */
         .empty-state {
             flex: 1;
             display: flex;
@@ -144,17 +249,39 @@
             justify-content: center;
             color: var(--fg-dim);
             gap: 16px;
+            background: transparent;
+            position: relative;
+            z-index: 1;
         }
         .empty-state .big-icon { font-size: 48px; opacity: 0.3; }
         .empty-state h3 { font-size: 16px; font-weight: 600; color: var(--fg); }
         .empty-state p { font-size: 13px; max-width: 320px; text-align: center; }
 
         /* Project view layout */
-        .project-view { display: none; flex: 1; flex-direction: column; overflow: hidden; }
+        .project-view {
+            display: none;
+            flex: 1;
+            flex-direction: column;
+            overflow: hidden;
+            background: rgba(18, 20, 26, 0.45);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            position: relative;
+        }
         .project-view.active { display: flex; }
-        .project-layout { display: flex; flex: 1; overflow: hidden; }
+        .project-view::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            pointer-events: none;
+            background:
+                radial-gradient(ellipse 60% 40% at 20% 30%, rgba(255,127,0,0.03) 0%, transparent 60%),
+                radial-gradient(ellipse 40% 50% at 80% 70%, rgba(255,94,0,0.025) 0%, transparent 50%);
+            z-index: 0;
+        }
+        .project-layout { display: flex; flex: 1; overflow: hidden; position: relative; z-index: 1; }
         .project-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-        .project-sidebar { width: 260px; border-left: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; background: var(--bg1); }
+        .project-sidebar { width: 260px; border-left: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; background: rgba(18, 20, 26, 0.55); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
         .panel-header {
             padding: 12px 14px;
             font-size: 12px; font-weight: 600; color: var(--fg-dim);
@@ -412,6 +539,45 @@
         .agent-select-row select { flex: 1; padding: 8px; background: var(--bg0); border: 1px solid var(--border); border-radius: 6px; color: var(--fg); font-size: 13px; }
 
         /* Toast */
+        .theme-toggle {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        .theme-toggle span { font-size: 14px; }
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 36px;
+            height: 20px;
+        }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: var(--bg3);
+            border-radius: 20px;
+            transition: .2s;
+            border: 1px solid var(--border);
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 14px;
+            width: 14px;
+            left: 2px;
+            bottom: 2px;
+            background-color: var(--fg);
+            border-radius: 50%;
+            transition: .2s;
+        }
+        input:checked + .slider { background-color: var(--accent); border-color: var(--accent); }
+        input:checked + .slider:before { transform: translateX(16px); background-color: white; }
+
+        /* Toast */
         .toast-container {
             position: fixed;
             bottom: 20px; right: 20px;
@@ -440,10 +606,31 @@
     <!-- Sidebar -->
     <div class="sidebar">
         <div class="sidebar-header">
-            <div class="logo">TT</div>
+            <div class="logo">
+                <div class="glass"></div>
+                <div class="gloss"></div>
+                <div class="gleam"></div>
+                <div class="rim"></div>
+                <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                    <!-- Two vertical bars (the body of two figures) -->
+                    <rect x="22" y="40" width="12" height="50" rx="4" fill="white" opacity="0.95"/>
+                    <rect x="66" y="40" width="12" height="50" rx="4" fill="white" opacity="0.95"/>
+                    <!-- Two heads (circles on top of each T) -->
+                    <circle cx="28" cy="22" r="8" fill="white" opacity="0.95"/>
+                    <circle cx="72" cy="22" r="8" fill="white" opacity="0.95"/>
+                    <!-- Head highlight dots — warm cream to glow against orange -->
+                    <circle cx="25" cy="19" r="3" fill="#ffe0b2"/>
+                    <circle cx="69" cy="19" r="3" fill="#ffe0b2"/>
+                    <!-- Arms reaching in to hold hands in center -->
+                    <rect x="22" y="46" width="20" height="8" rx="3" fill="white" opacity="0.9"/>
+                    <rect x="58" y="46" width="20" height="8" rx="3" fill="white" opacity="0.9"/>
+                    <!-- Holding hands clasp at center -->
+                    <circle cx="50" cy="50" r="7" fill="white" opacity="0.95"/>
+                </svg>
+            </div>
             <div>
-                <h1>Thumbtack</h1>
-                <div class="subtitle">Multi-agent control plane</div>
+                <h1>ThumbTack</h1>
+                <div class="subtitle">Multi-agent orchestration</div>
             </div>
         </div>
         <button class="new-project-btn" onclick="showNewProjectModal()">
@@ -455,6 +642,14 @@
             </div>
         </div>
         <div class="sidebar-footer">
+            <div class="theme-toggle">
+                <span>🌙</span>
+                <label class="switch">
+                    <input type="checkbox" id="themeToggle" onchange="toggleTheme()">
+                    <span class="slider"></span>
+                </label>
+                <span>☀️</span>
+            </div>
             v1.1.0 &bull; File Browser + Comparison + Task Queue
         </div>
     </div>
@@ -469,7 +664,7 @@
         <!-- Empty State -->
         <div class="empty-state" id="emptyState">
             <div class="big-icon">&#x2699;&#xfe0f;</div>
-            <h3>Welcome to Thumbtack</h3>
+            <h3>Welcome to ThumbTack</h3>
             <p>Create a project to start orchestrating AI coding agents. Spawn Claude, Codex, OpenCode, OpenClaw, Aider and more.</p>
             <button class="new-project-btn" onclick="showNewProjectModal()" style="margin-top:8px">
                 <span>+</span> Create your first project

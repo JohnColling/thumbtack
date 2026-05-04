@@ -187,8 +187,20 @@ async def list_projects():
 
 @app.post("/api/projects")
 async def create_project(data: _ProjectIn):
+    raw = data.path.strip()
+    if raw.startswith('~') or raw.startswith('/'):
+        resolved = os.path.expanduser(raw)
+    else:
+        resolved = os.path.join(os.path.expanduser('~'), 'thumbtack_projects', raw)
+    resolved = os.path.abspath(resolved)
+    if not os.path.exists(resolved):
+        try:
+            os.makedirs(resolved, exist_ok=True)
+        except OSError as e:
+            raise HTTPException(400, f"Cannot create project path '{resolved}': {e}")
+
     conn = _db(); cur = conn.cursor()
-    cur.execute("INSERT INTO projects (name,path,description) VALUES (?,?,?)",(data.name,data.path,data.description or ""))
+    cur.execute("INSERT INTO projects (name,path,description) VALUES (?,?,?)",(data.name,resolved,data.description or ""))
     conn.commit(); pid = cur.lastrowid
     cur.execute("SELECT * FROM projects WHERE id=?",(pid,)); row = dict(cur.fetchone())
     conn.close(); return row

@@ -7,6 +7,23 @@ let fileCurrentPath = '';
 let fileQueue = [];
 let lastFileContent = '';
 let lastFilePath = '';
+let currentTheme = localStorage.getItem('thumbtack-theme') || 'dark';
+
+// ─── Theme ───
+function applyTheme(theme) {
+    const html = document.documentElement;
+    if (theme === 'light') html.classList.add('light');
+    else html.classList.remove('light');
+    const toggle = document.getElementById('themeToggle');
+    if (toggle) toggle.checked = theme === 'light';
+    localStorage.setItem('thumbtack-theme', theme);
+    currentTheme = theme;
+}
+function toggleTheme() {
+    const toggle = document.getElementById('themeToggle');
+    applyTheme(toggle?.checked ? 'light' : 'dark');
+}
+document.addEventListener('DOMContentLoaded', () => { applyTheme(currentTheme); });
 
 function $(sel){ return document.querySelector(sel); }
 function $$(sel){ return document.querySelectorAll(sel); }
@@ -111,8 +128,8 @@ async function spawnAgent(agentType){
     if(agentType==='custom'){customCmd=prompt('Enter custom command:');if(!customCmd)return;}
     showToast(`Spawning ${agentType}...`);
     try{
-        const agent=await api('/api/projects/'+currentProject.id+'/agents',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({project_id:currentProject.id,agent_type:agentType,custom_command:customCmd||null})});
-        showToast(`${agentType} spawned`);
+        const agent=await api('/api/agents',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({project_id:currentProject.id,agent_type:agentType,command:customCmd||null})});
+        showToast(`${agentType} spawned (id:${agent.id})`);
         await selectProject(currentProject.id);
         connectWebSocket(agent.id,agentType);
     }catch(e){showToast(`Failed to spawn ${agentType}`,'error');}
