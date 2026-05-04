@@ -1040,6 +1040,89 @@
             color: var(--fg-dim);
             opacity: 0.8;
         }
+
+        /* ─── New Rotary Dial (v2) ─── */
+        .rotary-dial {
+            width: 340px; height: 340px;
+            position: relative;
+            transform: scale(0.7);
+            transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .dial-overlay.active .rotary-dial {
+            transform: scale(1);
+        }
+        .dial-indicator {
+            position: absolute;
+            top: 8px; left: 50%;
+            width: 0; height: 0;
+            z-index: 20;
+            transform: translateX(-50%);
+        }
+        .dial-indicator::before {
+            content: '';
+            position: absolute;
+            top: 0; left: -6px;
+            width: 12px; height: 18px;
+            background: var(--accent);
+            border-radius: 6px 6px 3px 3px;
+            box-shadow: 0 0 12px var(--accent), 0 2px 4px rgba(0,0,0,0.3);
+        }
+        .dial-ticks {
+            position: absolute; inset: 0;
+            border-radius: 50%;
+            z-index: 5;
+        }
+        .dial-tick {
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 2px;
+            background: var(--border);
+            transform-origin: 0 0;
+            opacity: 0.4;
+        }
+        .dial-tick.major {
+            width: 3px;
+            background: var(--accent);
+            opacity: 0.6;
+        }
+        .dial-segment {
+            position: absolute; inset: 0;
+            border-radius: 50%;
+            z-index: 8;
+            pointer-events: none;
+        }
+        .dial-label {
+            position: absolute;
+            top: 50%; left: 50%;
+            z-index: 9;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--fg-dim);
+            text-align: center;
+            white-space: nowrap;
+            pointer-events: none;
+            transition: color 0.2s, text-shadow 0.2s, transform 0.2s;
+        }
+        .dial-label.active {
+            color: var(--accent);
+            text-shadow: 0 0 8px rgba(255,127,0,0.4), 0 0 16px rgba(255,127,0,0.2);
+            font-size: 14px;
+        }
+        .dial-confirm-hint {
+            position: absolute;
+            bottom: -48px; left: 50%;
+            transform: translateX(-50%);
+            font-size: 12px;
+            color: var(--fg-dim);
+            opacity: 0;
+            transition: opacity 0.3s;
+            text-align: center;
+            white-space: nowrap;
+        }
+        .dial-overlay.active .dial-confirm-hint {
+            opacity: 0.7;
+        }
+
         /* Scrollbar */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
@@ -1147,17 +1230,20 @@
 
     <!-- Rotary Dial Navigation Overlay -->
     <div class="dial-overlay" id="dialOverlay" onclick="closeNavDial(event)">
-        <div class="dial-container" id="dialContainer">
+        <div class="rotary-dial" id="rotaryDial" onmousemove="handleMouseMove(event)">
+            <div class="dial-indicator"></div>
             <div class="dial-ring"></div>
-            <div class="dial-center"></div>
-            <div class="dial-notch"></div>
-            <div class="dial-option" id="dialOption0" onclick="selectDialOption(0)">
-                <span class="dial-option-label">Terminals</span>
+            <div class="dial-ticks" id="dialTicks"></div>
+            <div class="dial-hub">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M12 1v6M12 17v6M4.22 4.22l4.24 4.24M15.54 15.54l4.24 4.24M1 12h6M17 12h6M4.22 19.78l4.24-4.24M15.54 8.46l4.24-4.24"/>
+                </svg>
             </div>
-            <div class="dial-option" id="dialOption1" onclick="selectDialOption(1)">
-                <span class="dial-option-label">Tasks</span>
+            <div class="dial-segment" id="dialSegment"></div>
+            <div class="dial-confirm-hint" id="dialConfirmHint">
+                Click to confirm • Move mouse to rotate
             </div>
-            <div class="dial-close-hint">Click the button again to close</div>
         </div>
     </div>
 

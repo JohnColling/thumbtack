@@ -693,7 +693,22 @@ async function gitPull(){
     }
 }
 
+function navBack() {
+    // Return to project view or empty state
+    document.querySelectorAll('.page-view').forEach(p => p.classList.remove('active'));
+    document.getElementById('mainHeader').style.display = '';
+    if (currentProject) {
+        document.getElementById('projectView').classList.add('active');
+    } else {
+        document.getElementById('emptyState').style.display = 'flex';
+    }
+}
+
 // Expose for inline onclicks
+window.toggleNavDial=toggleNavDial;
+window.closeNavDial=closeNavDial;
+window.selectDialOption=selectDialOption;
+window.navBack=navBack;
 window.toggleSettingsPanel=toggleSettingsPanel;
 window.saveGitHubConfig=saveGitHubConfig;
 window.clearGitHubConfig=clearGitHubConfig;
@@ -730,3 +745,4 @@ window.gitCommit=gitCommit;
 window.gitInit=gitInit;
 window.loadGitLog=loadGitLog;
 window.renderGitLog=renderGitLog;
+
