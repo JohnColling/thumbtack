@@ -1,6 +1,6 @@
 # ThumbTack — Agent Orchestrator
 
-A dark-themed, single-page web application for spawning and orchestrating AI coding agents. Built with **FastAPI**, **Jinja2**, **SQLite**, and **asyncio subprocesses**.
+A dark or light-themed, web application for spawning and orchestrating AI coding agents. Built with **FastAPI**, **Jinja2**, **SQLite**, and **asyncio subprocesses**.
 
 ---
 
