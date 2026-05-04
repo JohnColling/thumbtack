@@ -746,3 +746,148 @@ window.gitInit=gitInit;
 window.loadGitLog=loadGitLog;
 window.renderGitLog=renderGitLog;
 
+// ─── Rotary Dial Navigation ───
+let dialActive = false;
+let dialAngle = 0;
+let dialOptions = [
+    {label: 'Terminals', path: '/terminals', icon: '💻'},
+    {label: 'Tasks',     path: '/tasks',     icon: '⚡'}
+];
+let currentDialSelection = 0;
+
+function toggleNavDial() {
+    dialActive = !dialActive;
+    const btn = document.getElementById('navDialBtn');
+    const overlay = document.getElementById('dialOverlay');
+    if (!overlay) return;
+    if (dialActive) {
+        btn.classList.add('pressed');
+        overlay.classList.add('active');
+        buildDial();
+        dialAngle = 0;
+        currentDialSelection = 0;
+        updateDialSelection();
+    } else {
+        btn.classList.remove('pressed');
+        overlay.classList.remove('active');
+    }
+}
+
+function closeNavDial(event) {
+    if (event && event.target && event.target.id === 'dialOverlay') {
+        if (dialActive) toggleNavDial();
+    }
+}
+
+function buildDial() {
+    const ticksEl = document.getElementById('dialTicks');
+    const segEl = document.getElementById('dialSegment');
+    if (!ticksEl || !segEl) return;
+
+    const n = dialOptions.length;
+    const radius = 130;
+
+    ticksEl.innerHTML = '';
+    const tickCount = n * 4;
+    for (let i = 0; i < tickCount; i++) {
+        const isMajor = i % 4 === 0;
+        const deg = (360 / tickCount) * i;
+        const tick = document.createElement('div');
+        tick.className = 'dial-tick' + (isMajor ? ' major' : '');
+        tick.style.cssText = `transform: rotate(${deg}deg) translateY(-142px); height: ${isMajor ? '14' : '6'}px;`;
+        ticksEl.appendChild(tick);
+    }
+
+    segEl.innerHTML = '';
+    dialOptions.forEach((opt, i) => {
+        const angleDeg = (360 / n) * i;
+        const angleRad = (angleDeg - 90) * Math.PI / 180;
+        const x = Math.cos(angleRad) * radius;
+        const y = Math.sin(angleRad) * radius;
+        const lbl = document.createElement('div');
+        lbl.className = 'dial-label';
+        lbl.id = 'dial-label-' + i;
+        lbl.innerHTML = '<span style="font-size:16px;display:block;margin-bottom:2px">' + opt.icon + '</span>' + opt.label;
+        lbl.style.cssText = 'transform: translate(-50%, -50%) translate(' + x + 'px, ' + y + 'px);';
+        segEl.appendChild(lbl);
+    });
+}
+
+function updateDialSelection() {
+    dialOptions.forEach((_, i) => {
+        const lbl = document.getElementById('dial-label-' + i);
+        if (lbl) lbl.classList.toggle('active', i === currentDialSelection);
+    });
+    const hint = document.getElementById('dialConfirmHint');
+    if (hint && dialOptions[currentDialSelection]) {
+        hint.innerHTML = 'Click dial to go to <b>' + dialOptions[currentDialSelection].label + '</b><br><span style="font-size:11px">Move mouse to rotate &bull; Click background to close</span>';
+    }
+}
+
+function handleMouseMove(e) {
+    if (!dialActive) return;
+    const dial = document.getElementById('rotaryDial');
+    if (!dial) return;
+    const rect = dial.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const dx = e.clientX - cx;
+    const dy = e.clientY - cy;
+    let angle = Math.atan2(dy, dx) * (180 / Math.PI);
+    angle = angle + 90;
+    if (angle < 0) angle += 360;
+    const target = angle;
+    const diff = target - dialAngle;
+    let shortest = diff;
+    if (diff > 180) shortest = diff - 360;
+    if (diff < -180) shortest = diff + 360;
+    dialAngle += shortest * 0.08;
+    dialAngle = ((dialAngle % 360) + 360) % 360;
+    if (dial) dial.style.transform = 'scale(1) rotate(' + (-dialAngle) + 'deg)';
+    dialOptions.forEach((_, i) => {
+        const lbl = document.getElementById('dial-label-' + i);
+        if (lbl) {
+            const base = (360 / dialOptions.length) * i;
+            const rel = ((base - dialAngle) % 360 + 360) % 360;
+            const dist = Math.abs(rel > 180 ? 360 - rel : rel);
+            if (dist < 60) {
+                lbl.style.opacity = '1';
+                lbl.style.transform = lbl.style.transform.replace(/scale\([^)]*\)/, '') + ' scale(1.15)';
+            } else {
+                lbl.style.opacity = '0.4';
+                lbl.style.transform = lbl.style.transform.replace(/scale\([^)]*\)/, '') + ' scale(1)';
+            }
+        }
+    });
+    const n = dialOptions.length;
+    const sector = 360 / n;
+    const indicatorAngle = ((-90 + dialAngle) % 360 + 360) % 360;
+    const sel = Math.round(indicatorAngle / sector) % n;
+    if (sel !== currentDialSelection) {
+        currentDialSelection = sel;
+        updateDialSelection();
+    }
+}
+
+function selectDialOption(idx) {
+    if (idx == null) idx = currentDialSelection;
+    const opt = dialOptions[idx];
+    if (!opt) return;
+    showToast('Navigating to ' + opt.label + '...');
+    window.location.href = opt.path;
+}
+
+// Click the rotary dial to confirm selection
+document.addEventListener('click', function(e) {
+    if (!dialActive) return;
+    const dial = document.getElementById('rotaryDial');
+    if (dial && dial.contains(e.target)) {
+        selectDialOption();
+    }
+});
+
+// Expose
+toggleNavDial = toggleNavDial;
+closeNavDial = closeNavDial;
+handleMouseMove = handleMouseMove;
+selectDialOption = selectDialOption;
