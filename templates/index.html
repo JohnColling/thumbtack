@@ -62,24 +62,13 @@
             width: 1px; height: 100%;
             background: #ffaa44;
             box-shadow:
-                0 0 1px #ff7f00,
-                0 0 1px #ff7f00,
-                0 0 2px rgba(255, 127, 0, 0.95),
-                0 0 3px rgba(255, 127, 0, 0.85),
-                0 0 5px rgba(255, 127, 0, 0.5);
-            filter: drop-shadow(0 0 1px #ff7f00);
+                0 0 0px 1px rgba(255, 127, 0, 1.0),
+                0 0 2px 1px rgba(255, 127, 0, 0.95),
+                0 0 4px 2px rgba(255, 127, 0, 0.7),
+                0 0 8px 3px rgba(255, 127, 0, 0.4),
+                0 0 12px 4px rgba(255, 127, 0, 0.2);
             animation: neon-pulse 3.5s ease-in-out infinite;
             z-index: 10;
-        }
-        .sidebar::before {
-            content: '';
-            position: absolute;
-            top: 0; right: -1px;
-            width: 1px; height: 100%;
-            background: transparent;
-            box-shadow: 0 0 6px 2px rgba(255, 127, 0, 0.08);
-            pointer-events: none;
-            z-index: 9;
         }
         @keyframes neon-pulse {
             0%, 100% { opacity: 1; }
@@ -379,6 +368,102 @@
         .tab-content { display: none; flex: 1; flex-direction: column; overflow: hidden; }
         .tab-content.active { display: flex; }
 
+        /* ─── Git Tab ─── */
+        .git-toolbar {
+            padding: 12px 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+        .git-status-bar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 13px;
+        }
+        .git-status-bar .branch { font-weight: 600; color: var(--accent); }
+        .git-status-bar .dirty { color: var(--accent4); }
+        .git-status-bar .clean { color: var(--accent2); }
+        .git-status-bar .badge {
+            background: var(--bg2);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 2px 8px;
+            font-size: 11px;
+        }
+        .git-actions { display: flex; gap: 8px; align-items: center; }
+        .git-commit-group { display: flex; gap: 6px; }
+        .git-commit-group input {
+            width: 260px;
+            padding: 6px 10px;
+            background: var(--bg0);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--fg);
+            font-size: 13px;
+        }
+        .git-panel {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0;
+        }
+        .git-file-group { margin-bottom: 16px; }
+        .git-file-group h5 {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--fg-dim);
+            padding: 12px 24px 6px;
+            border-bottom: 1px solid var(--border);
+            background: var(--bg0);
+            position: sticky;
+            top: 0;
+            z-index: 2;
+        }
+        .git-file-item {
+            padding: 8px 24px;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            transition: background 0.1s;
+            border-bottom: 1px solid var(--border);
+        }
+        .git-file-item:hover { background: var(--bg2); }
+        .git-file-item .indicator {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .git-file-item .indicator.staged { background: var(--accent2); }
+        .git-file-item .indicator.modified { background: var(--accent3); }
+        .git-file-item .indicator.untracked { background: var(--fg-dim); }
+        .git-file-item .path { flex: 1; font-family: ui-monospace, SFMono-Regular, 'SF Mono', Consolas, monospace; }
+        .git-file-item .actions { opacity: 0; transition: opacity 0.15s; }
+        .git-file-item:hover .actions { opacity: 1; }
+        .git-diff-viewer {
+            padding: 16px 24px;
+            font-family: ui-monospace, SFMono-Regular, 'SF Mono', Consolas, monospace;
+            font-size: 12px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            color: var(--fg);
+        }
+        .git-diff-viewer .diff-header { color: var(--accent); font-weight: 600; margin-bottom: 8px; }
+        .git-diff-viewer .diff-add { background: rgba(63,185,80,0.12); color: #3fb950; }
+        .git-diff-viewer .diff-del { background: rgba(248,81,73,0.12); color: #f85149; }
+        .git-diff-viewer .diff-info { color: var(--fg-dim); }
+        .git-empty {
+            padding: 40px 0;
+            text-align: center;
+            color: var(--fg-dim);
+            font-size: 13px;
+        }
+
         /* Agents section */
         .agents-section { padding: 16px 24px; border-bottom: 1px solid var(--border); }
         .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
@@ -629,6 +714,32 @@
         .toast.error { background: var(--accent4); color: white; }
         @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 
+        /* Git tab */
+        .git-toolbar { padding: 12px 24px; border-bottom: 1px solid var(--border); display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+        .git-status-bar { display: flex; gap: 12px; align-items: center; font-size: 13px; }
+        .git-badge { padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+        .git-badge.branch { background: var(--bg3); color: var(--accent); }
+        .git-badge.clean { background: #1a4d1a; color: #3fb950; }
+        .git-badge.dirty { background: #4d1a1a; color: #f85149; }
+        .git-actions { display: flex; gap: 8px; align-items: center; margin-left: auto; }
+        .git-commit-group { display: flex; gap: 8px; flex: 1; }
+        .git-commit-group input { flex: 1; padding: 6px 10px; background: var(--bg0); border: 1px solid var(--border); border-radius: 4px; color: var(--fg); font-size: 13px; outline: none; }
+        .git-commit-group input:focus { border-color: var(--accent); }
+        .git-panel { flex: 1; overflow-y: auto; padding: 12px 24px; }
+        .git-file-group { margin-bottom: 16px; }
+        .git-file-group h5 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--fg-dim); margin-bottom: 6px; font-weight: 600; }
+        .git-file-item { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 4px; font-size: 13px; font-family: 'SF Mono', monospace; cursor: pointer; }
+        .git-file-item:hover { background: var(--bg2); }
+        .git-file-item .indicator { font-size: 10px; width: 16px; text-align: center; font-weight: 700; }
+        .git-file-item .indicator.added { color: var(--accent2); }
+        .git-file-item .indicator.modified { color: var(--warn); }
+        .git-file-item .indicator.untracked { color: var(--fg-dim); }
+        .git-file-item .fname { flex: 1; }
+        .git-diff-box { background: var(--bg0); border: 1px solid var(--border); border-radius: 6px; padding: 10px 14px; margin-top: 6px; font-family: 'SF Mono', monospace; font-size: 12px; max-height: 280px; overflow-y: auto; white-space: pre-wrap; line-height: 1.5; }
+        .git-diff-box .diff-add { color: #3fb950; }
+        .git-diff-box .diff-rem { color: #f85149; }
+        .git-diff-box .diff-hdr { color: var(--fg-dim); font-weight: 600; }
+
         /* Scrollbar */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
@@ -806,6 +917,26 @@
                         </div>
                         <div class="task-queue-list" id="taskQueueList">
                             <p style="color:var(--fg-dim);font-size:13px;padding:40px 0;text-align:center">No tasks yet. Add one above.</p>
+                        </div>
+                    </div>
+
+                    <!-- Git Tab -->
+                    <div class="tab-content" id="tab-git">
+                        <div class="git-toolbar" id="gitToolbar">
+                            <div class="git-status-bar" id="gitStatusBar">
+                                <span style="color:var(--fg-dim)">Select a project to see git status</span>
+                            </div>
+                            <div class="git-actions">
+                                <button class="btn primary" id="gitInitBtn" onclick="gitInit()" style="display:none">Init Repo</button>
+                                <div class="git-commit-group" id="gitCommitGroup" style="display:none">
+                                    <input type="text" id="commitMessage" placeholder="Commit message..." onkeydown="if(event.key==='Enter') gitCommit()">
+                                    <button class="btn primary" onclick="gitCommit()">Commit</button>
+                                </div>
+                                <button class="btn" id="gitRefreshBtn" onclick="loadGitStatus()">Refresh</button>
+                            </div>
+                        </div>
+                        <div class="git-panel" id="gitPanel">
+                            <p style="color:var(--fg-dim);font-size:13px;padding:40px 0;text-align:center">No git information yet.</p>
                         </div>
                     </div>
                 </div>

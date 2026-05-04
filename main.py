@@ -114,7 +114,7 @@ class AgentProcess:
     async def _broadcast(self, line: str, is_err: bool):
         dead=[]
         for ws in list(self._clients):
-            try: await ws.send_json({"type":"output","line":line,"is_stderr":is_err})
+            try: await ws.send_json({"stream":"stderr" if is_err else "stdout","data":line})
             except: dead.append(ws)
         for d in dead:
             if d in self._clients: self._clients.remove(d)
@@ -417,7 +417,7 @@ async def ws_agent(websocket: WebSocket, aid: int):
     conn = _db(); cur = conn.cursor()
     cur.execute("SELECT output as line, is_stderr FROM agent_output WHERE agent_id=? ORDER BY created_at DESC LIMIT 100", (aid,))
     for row in cur.fetchall()[::-1]:
-        await websocket.send_json({"type":"output","line":row["output"],"is_stderr":bool(row["is_stderr"])})
+        await websocket.send_json({"stream":"stderr" if row["is_stderr"] else "stdout","data":row["output"]})
     conn.close()
     try:
         while True:
@@ -429,6 +429,84 @@ async def ws_agent(websocket: WebSocket, aid: int):
     except WebSocketDisconnect: pass
     finally:
         if aid in ACTIVE: ACTIVE[aid].unregister_client(websocket)
+
+# ─── Git ──────────────────────────────────────────────────────────
+@app.get("/api/projects/{pid}/git/status")
+async def git_status(pid: int):
+    proj = await get_project(pid)
+    path = proj["path"]
+    if not os.path.isdir(os.path.join(path, ".git")):
+        return {"repo_exists": False}
+    result = subprocess.run(
+        ["git", "status", "--porcelain=v1", "-b"],
+        cwd=path, capture_output=True, text=True
+    )
+    lines = result.stdout.strip().split("\n") if result.stdout.strip() else []
+    branch = ""
+    is_dirty = False
+    modified, untracked, staged = [], [], []
+    for ln in lines:
+        if ln.startswith("## "):
+            info = ln[3:]
+            if "..." in info:
+                branch = info.split("...")[0]
+            else:
+                branch = info.split(" ")[0]
+        elif len(ln) >= 3:
+            x, y, name = ln[0], ln[1], ln[3:]
+            if x != "." or y != ".": is_dirty = True
+            if x in "MADRC": staged.append(name)
+            if y in "MD": modified.append(name)
+            if x == "?" and y == "?": untracked.append(name)
+    return {
+        "repo_exists": True,
+        "branch": branch,
+        "is_dirty": is_dirty,
+        "modified": modified,
+        "untracked": untracked,
+        "staged": staged,
+        "ahead": branch.count("ahead") if branch else 0,
+        "behind": branch.count("behind") if branch else 0,
+    }
+
+@app.get("/api/projects/{pid}/git/diff")
+async def git_diff(pid: int, filepath: str = Query("")):
+    proj = await get_project(pid)
+    path = proj["path"]
+    if not os.path.isdir(os.path.join(path, ".git")):
+        raise HTTPException(400, "Not a git repository")
+    cmd = ["git", "diff", "--no-color"]
+    if filepath: cmd.append(filepath)
+    result = subprocess.run(cmd, cwd=path, capture_output=True, text=True)
+    return {"diff": result.stdout or "", "file": filepath or "(all files)", "empty": not result.stdout.strip()}
+
+@app.post("/api/projects/{pid}/git/init")
+async def git_init(pid: int):
+    proj = await get_project(pid)
+    path = proj["path"]
+    if os.path.isdir(os.path.join(path, ".git")):
+        return {"status": "already_initialized"}
+    subprocess.run(["git", "init"], cwd=path, capture_output=True, text=True)
+    subprocess.run(["git", "config", "user.name", "ThumbTack"], cwd=path, capture_output=True)
+    subprocess.run(["git", "config", "user.email", "thumbtack@local"], cwd=path, capture_output=True)
+    return {"status": "initialized"}
+
+@app.post("/api/projects/{pid}/git/commit")
+async def git_commit(pid: int, data: dict):
+    proj = await get_project(pid)
+    path = proj["path"]
+    if not os.path.isdir(os.path.join(path, ".git")):
+        raise HTTPException(400, "Not a git repository")
+    msg = data.get("message", "WIP commit").strip()
+    if not msg: raise HTTPException(400, "Commit message required")
+    subprocess.run(["git", "add", "-A"], cwd=path, capture_output=True)
+    result = subprocess.run(["git", "commit", "-m", msg], cwd=path, capture_output=True, text=True)
+    if result.returncode == 0:
+        return {"status": "committed", "message": msg}
+    err = result.stderr.lower()
+    if "nothing to commit" in err or result.stdout.lower().count("nothing"):
+        return {"status": "nothing_to_commit", "message": "Nothing to commit, working tree clean"}
+    raise HTTPException(500, result.stderr.strip() or "Commit failed")
 
 # ─── Health ────────────────────────────────────────────────────────────
 @app.get("/api/health")

@@ -117,6 +117,7 @@ async function selectProject(id){
     renderAgentsPanel(data.agents||[]);
     loadFileBrowser('');
     loadTaskQueue();
+    if(currentTheme==='git') loadGitStatus();
 }
 
 async function deleteProject(id){if(!confirm('Delete this project and all its agents?'))return;await api(`/api/projects/${id}`,{method:'DELETE'});currentProject=null;$('#emptyState').style.display='flex';$('#mainHeader h2').innerHTML='<span>&#x1f680;</span> Select a project';$('#headerActions').innerHTML='';showToast('Project deleted');await loadProjects();}
