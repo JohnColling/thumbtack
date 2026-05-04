@@ -80,6 +80,19 @@ Server runs at: `http://10.0.0.53:3456`
   - **Settings panel** — Username, email, token (masked as `••••••••` when saved), remote URL, branch selector. Token is preserved in DB when editing other fields.
 - **SPA catch-all route** — `@app.get("/{path:path}")` redirects any unknown URL back to `/` so client-side routing works
 
+### 3D Rotary Navigation Dial (NEW — this session)
+- **Circular 3D toggle button** in sidebar footer — press in to open, press again to confirm
+- **Orange gradient** with inset shadows, rotates icon 45° when depressed
+- **Mouse-driven rotation** — angular velocity calculated from mouse movement around dial center
+- **Smooth damping** — 12% lerp per frame via `requestAnimationFrame`
+- **Two segments**: Tasks (⚡) and Terminals (💻) at 180° apart
+- **Indicator pointer** at top with pulsing orange glow highlights active selection
+- **Gentle idle drift** when mouse is still (auto-reverses direction)
+- **Labels counter-rotate** to stay upright as dial spins
+- **Click backdrop** to dismiss without navigating
+- **Scalable** — `DIAL_OPTIONS` array supports 8+ future segments
+- **Placeholder pages** at `/tasks` and `/terminals` with sidebar + branded layout
+
 ---
 
 ## What's Broken / Still Rough ❌
