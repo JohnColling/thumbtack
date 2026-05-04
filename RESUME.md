@@ -1,7 +1,7 @@
 # RESUME — Session Checkpoint
 
 > **CRITICAL: This file is read on EVERY new session start. Do not skip.**
-> **Last updated:** 2026-05-04 ~22:48 AEST  
+> **Last updated:** 2026-05-05 00:46 AEST  
 > **Location:** Bundamba, Queensland, Australia  
 > **User:** John (two kids: Poppy and Kip)
 
@@ -13,7 +13,7 @@
 - **Local path:** `~/github/johncolling/thumbtack`  
 - **Server:** `http://10.0.0.53:3456`  
 - **Git branch:** `master`  
-- **HEAD commit:** `fd32995` — "docs: update RESUME.md with context-rotation concept and current session state"  
+- **HEAD commit:** `0e2fdb8` — "ignore thumbtack.log"  
 - **Tech stack:** FastAPI + Jinja2 + SQLite + Tailwind CSS + asyncio subprocesses  
 
 **State of code:** Clean working tree. `static/app.js` has working rotary dial JS. Templates have glass logo and neon sidebar.
