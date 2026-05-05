@@ -99,6 +99,7 @@ def _template_decompose(title: str, description: str) -> List[Dict[str, Any]]:
         seen.add(keyword)
         flat.extend(steps)
 
+    flat = flat[:6]   # cap subtask count
     if not flat:
         # generic fallback
         flat = [

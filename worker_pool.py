@@ -29,13 +29,21 @@ AGENT_EXECS = {
 }
 
 
-def _resolve_cmd(agent_type: str, custom: str = "") -> list:
-    """Return shell-command list for the given agent type."""
-    if custom:
-        return custom.split()
+def _resolve_cmd(agent_type: str, custom_command: str = "") -> list:
+    """Return shell-command list for the given agent type.
+
+    `custom_command` is a *prompt/description* to be piped to the agent's stdin,
+    NOT a shell command.  The return list is the executable + args ready for
+    subprocess.Popen.
+    """
     for path in AGENT_EXECS.get(agent_type, []):
         if os.path.isfile(path) and os.access(path, os.X_OK):
             return [path, "-p"]          # every CLI we use supports -p
+    # If the custom_command looks like a shell command (starts with known binaries),
+    # allow explicit override.
+    stripped = (custom_command or "").strip()
+    if stripped.startswith(("python ", "bash ", "sh ", "python3 ", "node ")):
+        return stripped.split()
     return ["python", "-c",
             f"print('ThumbTack: {agent_type} placeholder for task')"]
 
