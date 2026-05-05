@@ -15,7 +15,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
 from contextlib import asynccontextmanager
-from database import add_agent_log, get_agent_logs
+from database import init_db, add_agent_log, get_agent_logs, create_task as db_create_task, list_tasks as db_list_tasks, get_task as db_get_task, update_task_status, create_subtasks, get_subtasks, get_pending_tasks, get_queued_tasks, get_running_tasks, delete_task as db_delete_task
 
 # ── Paths ───────────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -41,58 +41,6 @@ def _db():
     conn.row_factory = sqlite3.Row
     return conn
 
-def init_db():
-    conn = sqlite3.connect(DB)
-    c = conn.cursor()
-    c.executescript("""
-    CREATE TABLE IF NOT EXISTS projects (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL, path TEXT NOT NULL,
-        description TEXT DEFAULT '', created_at TEXT DEFAULT ''
-    );
-    CREATE TABLE IF NOT EXISTS agents (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        project_id INTEGER NOT NULL,
-        agent_type TEXT NOT NULL DEFAULT 'custom',
-        command TEXT,
-        pid INTEGER, status TEXT DEFAULT 'idle',
-        created_at TEXT DEFAULT ''
-    );
-    CREATE TABLE IF NOT EXISTS agent_output (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        agent_id INTEGER NOT NULL,
-        output TEXT, is_stderr INTEGER DEFAULT 0,
-        created_at TEXT DEFAULT ''
-    );
-    CREATE TABLE IF NOT EXISTS tasks (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        project_id INTEGER NOT NULL,
-        task_text TEXT NOT NULL, status TEXT DEFAULT 'pending',
-        agent_id INTEGER, result TEXT DEFAULT '',
-        created_at TEXT DEFAULT '',
-        completed_at TEXT
-    );
-    CREATE TABLE IF NOT EXISTS agent_log (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        timestamp TEXT DEFAULT '',
-        level TEXT NOT NULL DEFAULT 'INFO',
-        message TEXT NOT NULL,
-        task_id INTEGER,
-        agent_id INTEGER,
-        project_id INTEGER
-    );
-    CREATE TABLE IF NOT EXISTS github_settings (
-        id INTEGER PRIMARY KEY CHECK (id = 1),
-        username TEXT NOT NULL DEFAULT '',
-        email TEXT NOT NULL DEFAULT '',
-        token TEXT NOT NULL DEFAULT '',
-        default_branch TEXT NOT NULL DEFAULT 'main',
-        updated_at TEXT DEFAULT ''
-    );
-    """)
-    conn.commit(); conn.close()
-
-
 # ── Orchestrator Heartbeat ────────────────────────────────────────────
 HEARTBEAT_INTERVAL = 900  # 15 minutes
 HEARTBEAT_TASK: asyncio.Task | None = None
@@ -108,32 +56,43 @@ async def _orchestrator_heartbeat():
     while True:
         ORCHESTRATOR_STATE["last_wake"] = datetime.now(TZ).isoformat()
         ORCHESTRATOR_STATE["total_ticks"] += 1
-        
-        # Log wake
         add_agent_log("AGENT_WAKE", f"Orchestrator heartbeat tick #{ORCHESTRATOR_STATE['total_ticks']}")
-        
-        # Scan for pending tasks
-        conn = _db()
-        cur = conn.cursor()
-        cur.execute("SELECT COUNT(*) FROM tasks WHERE status = 'pending'")
-        pending = cur.fetchone()[0]
-        cur.execute("SELECT COUNT(*) FROM tasks WHERE status = 'running'")
-        running = cur.fetchone()[0]
-        conn.close()
-        
-        ORCHESTRATOR_STATE["active_tasks"] = running
-        
-        if pending == 0 and running == 0:
-            add_agent_log("AGENT_IDLE", f"Queue empty. {pending} pending, {running} running. Sleeping {HEARTBEAT_INTERVAL}s.")
-            ORCHESTRATOR_STATE["status"] = "idle"
-        else:
-            add_agent_log("AGENT_SCAN", f"Found {pending} pending, {running} running tasks.")
-            ORCHESTRATOR_STATE["status"] = "scanning"
-            # TODO: Phase 2 — actually dispatch tasks to agents
-            # For now just log that we found work
-            if pending > 0:
-                add_agent_log("AGENT_TASK_FOUND", f"{pending} tasks waiting for dispatch.")
-        
+
+        try:
+            pending = get_pending_tasks()
+            queued  = get_queued_tasks()
+            running = get_running_tasks()
+
+            pending_count = len(pending)
+            queued_count  = len(queued)
+            running_count = len(running)
+
+            ORCHESTRATOR_STATE["active_tasks"] = running_count
+
+            if pending_count == 0 and queued_count == 0 and running_count == 0:
+                add_agent_log("AGENT_IDLE", f"Queue empty. Sleeping {HEARTBEAT_INTERVAL}s.")
+                ORCHESTRATOR_STATE["status"] = "idle"
+            else:
+                add_agent_log("AGENT_SCAN", f"{pending_count} pending | {queued_count} queued | {running_count} running")
+                ORCHESTRATOR_STATE["status"] = "scanning"
+
+                if pending_count > 0:
+                    # Phase 2: oldest pending task gets flagged for human decomposition
+                    oldest = pending[0]
+                    add_agent_log("TASK_PENDING", f"Task #{oldest['id']} '{oldest['title'][:40]}' waiting for decomposition/approval", task_id=oldest['id'])
+
+                if queued_count > 0:
+                    # Phase 3 (future): dispatch queued subtasks to agents
+                    add_agent_log("TASK_QUEUED", f"{queued_count} subtasks ready for agent dispatch (Phase 3)")
+
+                if running_count > 0:
+                    for t in running:
+                        add_agent_log("TASK_RUNNING", f"Task #{t['id']} running (agent #{t.get('assigned_agent_id')})", task_id=t['id'])
+
+        except Exception as e:
+            add_agent_log("AGENT_ERROR", f"Heartbeat tick failed: {e}")
+            ORCHESTRATOR_STATE["status"] = "error"
+
         await asyncio.sleep(HEARTBEAT_INTERVAL)
 
 # ── AgentProcess ────────────────────────────────────────────────────────
@@ -436,57 +395,124 @@ async def spawn_comparison(data: dict):
     return {"comparison_id": f"{left['id']}-{right['id']}", "left_agent_id":left["id"], "right_agent_id":right["id"],
             "left_type":left_type, "right_type":right_type, "command":command}
 
-# ─── Task Queue ────────────────────────────────────────────────────────
+# ─── Task Queue (Phase 2) ────────────────────────────────────────────────────────
 @app.get("/api/projects/{pid}/tasks")
 async def list_tasks(pid: int):
-    conn = _db(); cur = conn.cursor()
-    cur.execute("SELECT * FROM tasks WHERE project_id=? ORDER BY created_at DESC", (pid,))
-    rows = [dict(r) for r in cur.fetchall()]; conn.close(); return rows
+    rows = db_list_tasks(pid)
+    return rows
+
+@app.get("/api/tasks/{tid}")
+async def get_task(tid: int):
+    row = db_get_task(tid)
+    if not row: raise HTTPException(404, "Task not found")
+    row["subtasks"] = get_subtasks(tid)
+    return row
 
 @app.post("/api/projects/{pid}/tasks")
-async def add_task(pid: int, data: dict):
-    text = data.get("task_text", "").strip()
-    if not text: raise HTTPException(400, "task_text required")
+async def create_task(pid: int, data: dict):
+    title = data.get("title", "").strip()
+    if not title: raise HTTPException(400, "title required")
+    description = data.get("description", "").strip()
+    priority = data.get("priority", 3)
+    try:
+        priority = int(priority)
+        if priority < 1 or priority > 5: priority = 3
+    except: priority = 3
+    tid = db_create_task(pid, title, description, priority)
+    row = db_get_task(tid)
+    add_agent_log("TASK_CREATED", f"Task #{tid} created: {title}", task_id=tid, project_id=pid)
+    return row
+
+@app.patch("/api/tasks/{tid}")
+async def update_task(tid: int, data: dict):
+    """Generic update: status, title, description, priority."""
+    task = db_get_task(tid)
+    if not task: raise HTTPException(404, "Task not found")
     conn = _db(); cur = conn.cursor()
-    cur.execute("INSERT INTO tasks (project_id, task_text, status) VALUES (?,?,?)" ,(pid, text, "pending"))
-    conn.commit(); tid = cur.lastrowid
+    fields = []
+    vals = []
+    if "status" in data: fields.append("status=?"); vals.append(data["status"])
+    if "title" in data: fields.append("title=?"); vals.append(data["title"])
+    if "description" in data: fields.append("description=?"); vals.append(data["description"])
+    if "priority" in data: fields.append("priority=?"); vals.append(data["priority"])
+    if "result" in data: fields.append("result=?"); vals.append(data["result"])
+    if not fields: conn.close(); raise HTTPException(400, "No fields to update")
+    vals.append(tid)
+    cur.execute(f"UPDATE tasks SET {','.join(fields)} WHERE id=?", vals)
+    conn.commit()
     cur.execute("SELECT * FROM tasks WHERE id=?", (tid,)); row = dict(cur.fetchone())
-    conn.close(); return row
+    conn.close()
+    add_agent_log("TASK_UPDATED", f"Task #{tid} updated: {','.join(fields)}", task_id=tid)
+    return row
+
+@app.post("/api/tasks/{tid}/decompose")
+async def decompose_task(tid: int, data: dict):
+    """Human or orchestrator proposes subtasks. Task goes pending→planning.
+    Body: {"subtasks": [{"title": "...", "description": "...", "priority": 3}, ...]}
+    """
+    task = db_get_task(tid)
+    if not task: raise HTTPException(404, "Task not found")
+    subtasks = data.get("subtasks", [])
+    if not isinstance(subtasks, list) or not subtasks:
+        raise HTTPException(400, "subtasks array required")
+    # Update parent to planning
+    update_task_status(tid, "planning")
+    # Create subtasks (status=queued, but they won't run until parent is approved)
+    ids = create_subtasks(tid, task["project_id"], subtasks)
+    row = db_get_task(tid)
+    row["subtasks"] = get_subtasks(tid)
+    row["new_subtask_ids"] = ids
+    add_agent_log("TASK_DECOMPOSED", f"Task #{tid} decomposed into {len(ids)} subtasks", task_id=tid)
+    return row
+
+@app.post("/api/tasks/{tid}/approve")
+async def approve_task(tid: int):
+    task = db_get_task(tid)
+    if not task: raise HTTPException(404, "Task not found")
+    if task["status"] not in ("pending", "planning"):
+        raise HTTPException(400, f"Cannot approve task with status '{task['status']}'")
+    # Mark parent approved
+    update_task_status(tid, "approved")
+    # Change subtasks from 'queued' to 'queued' — they stay queued for the heartbeat to pick up
+    conn = _db(); cur = conn.cursor()
+    cur.execute("UPDATE tasks SET status='queued' WHERE parent_task_id=? AND status='planning_subtask'", (tid,))
+    # Actually subtasks already have status='queued', but we can leave them
+    conn.commit(); conn.close()
+    add_agent_log("TASK_APPROVED", f"Task #{tid} approved. Subtasks queued for execution.", task_id=tid)
+    return db_get_task(tid)
+
+@app.post("/api/tasks/{tid}/reject")
+async def reject_task(tid: int):
+    task = db_get_task(tid)
+    if not task: raise HTTPException(404, "Task not found")
+    update_task_status(tid, "rejected")
+    conn = _db(); cur = conn.cursor()
+    cur.execute("DELETE FROM tasks WHERE parent_task_id=?", (tid,))
+    conn.commit(); conn.close()
+    add_agent_log("TASK_REJECTED", f"Task #{tid} rejected. Subtasks removed.", task_id=tid)
+    return {"status": "rejected", "task_id": tid}
 
 @app.delete("/api/tasks/{tid}")
 async def delete_task(tid: int):
+    task = db_get_task(tid)
+    if not task: raise HTTPException(404, "Task not found")
+    # Delete subtasks first
     conn = _db(); cur = conn.cursor()
-    cur.execute("DELETE FROM tasks WHERE id=?", (tid,)); conn.commit(); conn.close()
-    return {"status":"deleted"}
-
-@app.post("/api/tasks/{tid}/run")
-async def run_task(tid: int, agent_id: int = Query(...)):
-    conn = _db(); cur = conn.cursor()
-    cur.execute("SELECT * FROM tasks WHERE id=?", (tid,)); task = cur.fetchone()
-    if not task: conn.close(); raise HTTPException(404)
-    # Get agent
-    cur.execute("SELECT * FROM agents WHERE id=?", (agent_id,)); agent = cur.fetchone()
-    if not agent: conn.close(); raise HTTPException(404, "Agent not found")
-    conn.close()
-    if task["status"] in ("running", "done"):
-        raise HTTPException(400, f"Task already {task['status']}")
-    # Forward to agent
-    if agent_id in ACTIVE:
-        await ACTIVE[agent_id].send(task["task_text"])
-        conn = _db(); cur = conn.cursor()
-        cur.execute("UPDATE tasks SET status=?, agent_id=? WHERE id=?", ("running", agent_id, tid))
-        conn.commit(); conn.close()
-        # mark done after a short delay (fire-and-forget)
-        asyncio.create_task(_mark_task_done(tid, agent_id, "Dispatched"))
-        return {"status":"running"}
-    raise HTTPException(400, "Agent not active")
-
-async def _mark_task_done(tid: int, aid: int, result: str):
-    await asyncio.sleep(2)  # give time for output
-    now = datetime.now(TZ).isoformat()
-    conn = _db(); cur = conn.cursor()
-    cur.execute("UPDATE tasks SET status=?, result=?, completed_at=? WHERE id=?", ("done", result, now, tid))
+    cur.execute("DELETE FROM tasks WHERE parent_task_id=?", (tid,))
     conn.commit(); conn.close()
+    db_delete_task(tid)
+    add_agent_log("TASK_DELETED", f"Task #{tid} deleted", task_id=tid)
+    return {"status": "deleted", "task_id": tid}
+
+# Legacy task_text endpoint (redirects to new create)
+@app.post("/api/projects/{pid}/tasks/legacy")
+async def add_task_legacy(pid: int, data: dict):
+    text = data.get("task_text", "").strip()
+    if not text: raise HTTPException(400, "task_text required")
+    tid = db_create_task(pid, text, "", 3)
+    row = db_get_task(tid)
+    add_agent_log("TASK_CREATED", f"Legacy task #{tid} created", task_id=tid, project_id=pid)
+    return row
 
 # ─── WebSocket ──────────────────────────────────────────────────────────
 @app.websocket("/ws/agents/{aid}")

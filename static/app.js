@@ -283,34 +283,39 @@ function renderTaskQueue(){
     const el=$('#taskQueueList');
     if(!taskList.length){el.innerHTML='<p style="color:var(--fg-dim);font-size:13px;padding:40px 0;text-align:center">No tasks yet. Add one above.</p>';return;}
     el.innerHTML=taskList.map(t=>{
-        const statusClass={pending:'pending',running:'running',done:'done',error:'error'}[t.status]||'pending';
-        return `<div class="task-item"><span class="status ${statusClass}">${t.status}</span><span class="text">${escapeHtml(t.task_text)}</span><span class="result">${t.result||''}</span><div class="actions">${t.status==='pending'?`<button onclick="runTask(${t.id})">Run</button>`:''}<button onclick="deleteTask(${t.id})">Delete</button></div></div>`;
+        const statusClass={pending:'pending',planning:'pending',approved:'approved',queued:'pending',running:'running',done:'done',failed:'error',rejected:'error'}[t.status]||'pending';
+        let actions='';
+        if(t.status==='pending') actions+=`<button onclick="decomposePrompt(${t.id})">Decompose</button>`;
+        if(t.status==='planning') actions+=`<button onclick="approveTask(${t.id})">Approve</button><button onclick="rejectTask(${t.id})">Reject</button>`;
+        if(t.status==='approved') actions+=`<span style="color:var(--accent-green)">Queued</span>`;
+        actions+=`<button onclick="deleteTask(${t.id})">Delete</button>`;
+        return `<div class="task-item"><span class="status ${statusClass}">${t.status}</span><span class="text"><strong>${escapeHtml(t.title)}</strong>${t.description?'<br><small>'+escapeHtml(t.description)+'</small>':''}</span><span class="result">${t.result||''}</span><div class="actions">${actions}</div></div>`;
     }).join('');
 }
 async function addTask(){
     if(!currentProject){showToast('Select a project first','error');return;}
-    const text=$('#taskInput').value.trim();
-    if(!text){showToast('Task text required','error');return;}
+    const title=$('#taskInput').value.trim();
+    if(!title){showToast('Task title required','error');return;}
     $('#taskInput').value='';
-    await api(`/api/projects/${currentProject.id}/tasks`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({task_text:text})});
-    showToast('Task added');
+    await api(`/api/projects/${currentProject.id}/tasks`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:title,description:'',priority:3})});
+    showToast('Task created');
     await loadTaskQueue();
 }
 async function deleteTask(id){await api(`/api/tasks/${id}`,{method:'DELETE'});showToast('Task deleted');await loadTaskQueue();}
-async function runTask(id){
-    if(!currentProject||!currentProject.agents?.length){showToast('No active agents to run task','error');return;}
-    const agent=currentProject.agents[0];
-    showToast('Running task...');
-    await api(`/api/tasks/${id}/run?agent_id=${agent.id}`,{method:'POST'});
-    await loadTaskQueue();
-}
-async function runAllTasks(){
-    const pending=taskList.filter(t=>t.status==='pending');
-    if(!pending.length){showToast('No pending tasks','error');return;}
-    if(!currentProject?.agents?.length){showToast('No active agents','error');return;}
-    showToast(`Running ${pending.length} tasks...`);
-    for(const t of pending){await api(`/api/tasks/${t.id}/run?agent_id=${currentProject.agents[0].id}`,{method:'POST'});}
-    await loadTaskQueue();
+async function approveTask(id){await api(`/api/tasks/${id}/approve`,{method:'POST'});showToast('Task approved');await loadTaskQueue();}
+async function rejectTask(id){await api(`/api/tasks/${id}/reject`,{method:'POST'});showToast('Task rejected');await loadTaskQueue();}
+async function decomposePrompt(id){
+    const subtasks = prompt("Enter subtasks as JSON array:\n[{\"title\":\"...\",\"description\":\"...\",\"priority\":3}, ...]");
+    if(!subtasks) return;
+    try {
+        const parsed = JSON.parse(subtasks);
+        if(!Array.isArray(parsed)) throw new Error("Not an array");
+        await api(`/api/tasks/${id}/decompose`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({subtasks:parsed})});
+        showToast('Decomposed');
+        await loadTaskQueue();
+    } catch(e) {
+        showToast('Invalid JSON: '+e.message,'error');
+    }
 }
 async function clearCompletedTasks(){
     const done=taskList.filter(t=>t.status==='done');

@@ -115,6 +115,15 @@ def init_db():
     )
     """)
 
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS agent_output (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        agent_id INTEGER NOT NULL,
+        output TEXT, is_stderr INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+
     conn.commit()
     conn.close()
 
@@ -264,12 +273,12 @@ def get_logs(agent_id: int, limit: int = 1000) -> List[Dict[str, Any]]:
     return rows
 
 
-def add_task(project_id: int, command: str) -> int:
+def create_task(project_id: int, title: str, description: str = "", priority: int = 3) -> int:
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute(
-        "INSERT INTO tasks (project_id, command) VALUES (?, ?)",
-        (project_id, command)
+        "INSERT INTO tasks (project_id, title, description, priority, status) VALUES (?, ?, ?, ?, ?)",
+        (project_id, title, description, priority, "pending")
     )
     task_id = cursor.lastrowid
     conn.commit()
@@ -299,10 +308,14 @@ def update_task_status(task_id: int, status: str, result: str = "", agent_id: Op
     conn = get_db()
     cursor = conn.cursor()
     now = now_aest()
-    if status == "running":
-        cursor.execute("UPDATE tasks SET status = ?, agent_id = ?, started_at = ? WHERE id = ?",
+    if status == "planning":
+        cursor.execute("UPDATE tasks SET status = ?, planned_at = ? WHERE id = ?", (status, now, task_id))
+    elif status == "approved":
+        cursor.execute("UPDATE tasks SET status = ?, approved_at = ? WHERE id = ?", (status, now, task_id))
+    elif status == "running":
+        cursor.execute("UPDATE tasks SET status = ?, assigned_agent_id = ?, started_at = ? WHERE id = ?",
                        (status, agent_id, now, task_id))
-    elif status in ("completed", "failed"):
+    elif status in ("done", "failed"):
         cursor.execute("UPDATE tasks SET status = ?, result = ?, completed_at = ? WHERE id = ?",
                        (status, result, now, task_id))
     else:
@@ -321,6 +334,58 @@ def delete_task(task_id: int) -> bool:
     conn.commit()
     conn.close()
     return deleted
+
+
+def create_subtasks(parent_task_id: int, project_id: int, subtasks: List[dict]) -> List[int]:
+    """Create subtask rows from a decomposition plan. Returns list of new task IDs."""
+    ids = []
+    conn = get_db()
+    cursor = conn.cursor()
+    for st in subtasks:
+        cursor.execute(
+            "INSERT INTO tasks (project_id, parent_task_id, title, description, priority, status) VALUES (?, ?, ?, ?, ?, ?)",
+            (project_id, parent_task_id, st["title"], st.get("description", ""), st.get("priority", 3), "queued")
+        )
+        ids.append(cursor.lastrowid)
+    conn.commit()
+    conn.close()
+    return ids
+
+
+def get_subtasks(parent_task_id: int) -> List[Dict[str, Any]]:
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM tasks WHERE parent_task_id = ? ORDER BY priority, id", (parent_task_id,))
+    rows = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return rows
+
+
+def get_pending_tasks() -> List[Dict[str, Any]]:
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM tasks WHERE status = 'pending' ORDER BY priority, created_at")
+    rows = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return rows
+
+
+def get_queued_tasks() -> List[Dict[str, Any]]:
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM tasks WHERE status = 'queued' ORDER BY priority, created_at")
+    rows = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return rows
+
+
+def get_running_tasks() -> List[Dict[str, Any]]:
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM tasks WHERE status = 'running' ORDER BY created_at")
+    rows = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return rows
 
 
 def get_github_settings() -> Dict[str, Any]:
