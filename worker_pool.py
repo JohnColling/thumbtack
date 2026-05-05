@@ -14,7 +14,8 @@ from typing import Dict, Optional
 
 from database import (
     DB_PATH, now_aest, update_task_status, add_agent_log,
-    get_queued_tasks, get_running_tasks, get_project, create_agent
+    get_queued_tasks, get_running_tasks, get_project, create_agent,
+    add_task_output
 )
 
 # ── Config ────────────────────────────────────────────────────────────────
@@ -83,7 +84,7 @@ class TaskAgent:
 
     # ── lifecycle ─────────────────────────────────────────────────────────
     async def start(self) -> "TaskAgent":
-        """Prepare workspace, spawn subprocess, mark task running."""
+        """Prepare workspace, spawn subprocess, feed prompt, mark task running."""
         ws = await self._prepare_workspace()
         cmd = _resolve_cmd(self.agent_type, self.custom_command)
 
@@ -99,6 +100,12 @@ class TaskAgent:
             bufsize=1,
         )
         self._alive = True
+
+        # Feed the task prompt to stdin (non-blocking so it doesn't deadlock)
+        if self.proc and self.proc.stdin:
+            prompt_text = f"Task: {self.task_id}\nPrompt: {self.custom_command or 'Execute this task'}\n"
+            self.proc.stdin.write(prompt_text)
+            self.proc.stdin.flush()
 
         # DB agent row (status=running)
         self.agent_id = create_agent(
@@ -196,7 +203,7 @@ class TaskAgent:
                     pass
 
     async def _emit(self, line: str, is_err: bool):
-        """Broadcast to WebSockets and persist to DB."""
+        """Broadcast to WebSockets, agent_output, and task_output."""
         stream = "stderr" if is_err else "stdout"
         dead = []
         for ws in list(self._clients):
@@ -208,12 +215,16 @@ class TaskAgent:
             if d in self._clients:
                 self._clients.remove(d)
 
-        # persist
+        # persist to agent_output (legacy) and task_outputs (Phase 3)
         conn = sqlite3.connect(str(DB_PATH))
         c = conn.cursor()
         c.execute(
             "INSERT INTO agent_output (agent_id, output, is_stderr) VALUES (?,?,?)",
             (self.agent_id, line, 1 if is_err else 0)
+        )
+        c.execute(
+            "INSERT INTO task_outputs (task_id, agent_id, output, is_stderr) VALUES (?,?,?,?)",
+            (self.task_id, self.agent_id, line, 1 if is_err else 0)
         )
         conn.commit()
         conn.close()

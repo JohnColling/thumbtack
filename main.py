@@ -15,9 +15,10 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
 from contextlib import asynccontextmanager
-from database import init_db, add_agent_log, get_agent_logs, create_task as db_create_task, list_tasks as db_list_tasks, get_task as db_get_task, update_task_status, create_subtasks, get_subtasks, get_pending_tasks, get_queued_tasks, get_running_tasks, delete_task as db_delete_task
+from database import init_db, add_agent_log, get_agent_logs, create_task as db_create_task, list_tasks as db_list_tasks, get_task as db_get_task, update_task_status, create_subtasks, get_subtasks, get_pending_tasks, get_queued_tasks, get_running_tasks, delete_task as db_delete_task, get_task_outputs
 
 from worker_pool import get_pool, start_pool, stop_pool
+from task_decomposer import decompose_task
 
 # ── Paths ───────────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -466,8 +467,48 @@ async def update_task(tid: int, data: dict):
     add_agent_log("TASK_UPDATED", f"Task #{tid} updated: {','.join(fields)}", task_id=tid)
     return row
 
+@app.post("/api/tasks/{tid}/plan")
+async def auto_plan_task(tid: int, data: dict = None):
+    """Auto-decompose a task using the LLM planner.
+    Body (optional): {"custom_prompt": "...extra context..."}
+    """
+    task = db_get_task(tid)
+    if not task: raise HTTPException(404, "Task not found")
+    if task["status"] not in ("pending", "planning"):
+        raise HTTPException(400, f"Cannot plan task with status '{task['status']}'")
+
+    custom_prompt = (data or {}).get("custom_prompt")
+    result = await decompose_task(tid, custom_prompt=custom_prompt)
+
+    if not result["ok"]:
+        raise HTTPException(500, result["error"])
+
+    # Convert validated subtasks → DB rows
+    subtask_specs = result["subtasks"]
+    if not subtask_specs:
+        raise HTTPException(500, "Planner returned no subtasks")
+
+    update_task_status(tid, "planning")
+    ids = create_subtasks(tid, task["project_id"], subtask_specs)
+
+    # Update subtask metadata (agent_type, estimated_minutes) — DB schema may need extension
+    conn = _db(); cur = conn.cursor()
+    for idx, sid in enumerate(ids):
+        spec = subtask_specs[idx]
+        cur.execute(
+            "UPDATE tasks SET assigned_agent_type=?, command=? WHERE id=?",
+            (spec["agent_type"], f"# Estimated: {spec['estimated_minutes']}min\n{spec['description']}", sid)
+        )
+    conn.commit(); conn.close()
+
+    row = db_get_task(tid)
+    row["subtasks"] = get_subtasks(tid)
+    row["new_subtask_ids"] = ids
+    add_agent_log("TASK_PLANNED", f"Task #{tid} auto-decomposed into {len(ids)} subtasks", task_id=tid)
+    return row
+
 @app.post("/api/tasks/{tid}/decompose")
-async def decompose_task(tid: int, data: dict):
+async def decompose_task_manual(tid: int, data: dict):
     """Human or orchestrator proposes subtasks. Task goes pending→planning.
     Body: {"subtasks": [{"title": "...", "description": "...", "priority": 3}, ...]}
     """
@@ -613,6 +654,15 @@ async def stop_task(tid: int):
     await pool.stop_task(tid)
     add_agent_log("TASK_STOPPED", f"Task #{tid} stopped by user", task_id=tid)
     return {"status": "stopped", "task_id": tid}
+
+@app.get("/api/tasks/{tid}/output")
+async def task_output(tid: int, limit: int = 200):
+    task = db_get_task(tid)
+    if not task: raise HTTPException(404, "Task not found")
+    rows = get_task_outputs(tid, limit=limit)
+    for r in rows:
+        r["is_stderr"] = bool(r.get("is_stderr"))
+    return {"task_id": tid, "outputs": rows}
 
 
 # ─── Git ──────────────────────────────────────────────────────────

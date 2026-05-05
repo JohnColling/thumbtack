@@ -285,13 +285,23 @@ function renderTaskQueue(){
     el.innerHTML=taskList.map(t=>{
         const statusClass={pending:'pending',planning:'pending',approved:'approved',queued:'pending',running:'running',done:'done',failed:'error',rejected:'error'}[t.status]||'pending';
         let actions='';
-        if(t.status==='pending') actions+=`<button onclick="decomposePrompt(${t.id})">Decompose</button>`;
+        if(t.status==='pending'){
+            actions+=`<button onclick="autoPlanTask(${t.id})">&#x2728; Auto Plan</button>`;
+            actions+=`<button onclick="decomposePrompt(${t.id})">Manual</button>`;
+        }
         if(t.status==='planning') actions+=`<button onclick="approveTask(${t.id})">Approve</button><button onclick="rejectTask(${t.id})">Reject</button>`;
         if(t.status==='approved') actions+=`<span style="color:var(--accent2);font-size:11px">Queued</span>`;
         if(t.status==='queued') actions+=`<button onclick="dispatchTask(${t.id})">Dispatch</button>`;
         if(t.status==='running') actions+=`<button onclick="stopTask(${t.id})">Stop</button><button onclick="streamTask(${t.id})">Stream</button>`;
+        if(t.status==='done' || t.status==='failed') actions+=`<button onclick="viewTaskOutput(${t.id})">Output</button>`;
         actions+=`<button onclick="deleteTask(${t.id})">Delete</button>`;
-        return `<div class="task-item"><span class="status ${statusClass}">${t.status}</span><span class="text"><strong>${escapeHtml(t.title)}</strong>${t.description?'<br><small>'+escapeHtml(t.description)+'</small>':''}</span><span class="result">${t.result||''}</span><div class="actions">${actions}</div></div>`;
+        // Show subtask count if present
+        let subtaskBadge = '';
+        if (t.subtasks && t.subtasks.length > 0) {
+            const doneCount = t.subtasks.filter(s => s.status === 'done').length;
+            subtaskBadge = `<span style="font-size:10px;color:var(--fg-dim);margin-left:6px">[${doneCount}/${t.subtasks.length}]</span>`;
+        }
+        return `<div class="task-item"><span class="status ${statusClass}">${t.status}</span><span class="text"><strong>${escapeHtml(t.title)}</strong>${t.description?'<br><small>'+escapeHtml(t.description)+'</small>':''}${subtaskBadge}</span><span class="result">${t.result||''}</span><div class="actions">${actions}</div></div>`;
     }).join('');
 }
 async function addTask(){
@@ -319,6 +329,18 @@ async function decomposePrompt(id){
         showToast('Invalid JSON: '+e.message,'error');
     }
 }
+
+async function autoPlanTask(id){
+    showToast('Planning subtasks with LLM...', 'info');
+    try {
+        const resp = await api(`/api/tasks/${id}/plan`, {method:'POST', headers:{'Content-Type':'application/json'}});
+        showToast(`Planned ${resp.subtasks ? resp.subtasks.length : 0} subtasks — review and approve`, 'success');
+        await loadTaskQueue();
+    } catch(e) {
+        showToast('Auto-plan failed: ' + (e.message || 'unknown'), 'error');
+    }
+}
+
 async function clearCompletedTasks(){
     const done=taskList.filter(t=>t.status==='done');
     for(const t of done){await api(`/api/tasks/${t.id}`,{method:'DELETE'});}
@@ -344,7 +366,8 @@ function streamTask(id){
     const term = $('#agentTerminal');
     term.innerHTML = '';
     showModal('agentTerminalModal');
-    taskWs = new WebSocket(`ws://${location.host}/ws/tasks/${id}`);
+    const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    taskWs = new WebSocket(`${proto}//${location.host}/ws/tasks/${id}`);
     taskWs.onmessage = (e) => {
         try{
             const msg = JSON.parse(e.data);
@@ -356,6 +379,28 @@ function streamTask(id){
         }catch(err){}
     };
     taskWs.onclose = () => { taskWs=null; };
+}
+
+async function viewTaskOutput(id){
+    const term = $('#agentTerminal');
+    term.innerHTML = '';
+    showModal('agentTerminalModal');
+    try{
+        const data = await api(`/api/tasks/${id}/output`);
+        const outputs = data.outputs || [];
+        for(const o of outputs){
+            const line = document.createElement('div');
+            line.className = o.is_stderr ? 'term-line stderr' : 'term-line';
+            line.textContent = o.output;
+            term.appendChild(line);
+        }
+        if(!outputs.length){
+            term.innerHTML = '<div style="color:var(--fg-dim);padding:10px">No output recorded.</div>';
+        }
+        term.scrollTop = term.scrollHeight;
+    }catch(e){
+        term.innerHTML = '<div style="color:var(--accent4);padding:10px">Failed to load output</div>';
+    }
 }
 
 // ─── Tabs ───
@@ -929,4 +974,5 @@ document.addEventListener('click', function(e) {
 toggleNavDial = toggleNavDial;
 closeNavDial = closeNavDial;
 handleMouseMove = handleMouseMove;
+window.autoPlanTask = autoPlanTask;
 selectDialOption = selectDialOption;

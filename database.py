@@ -52,6 +52,12 @@ def init_db():
     )
     """)
 
+    # migration: add columns to existing tables created before schema change
+    try: cursor.execute("ALTER TABLE agents ADD COLUMN custom_command TEXT DEFAULT ''")
+    except sqlite3.OperationalError: pass
+    try: cursor.execute("ALTER TABLE tasks ADD COLUMN assigned_agent_type TEXT DEFAULT 'claude'")
+    except sqlite3.OperationalError: pass
+
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS command_history (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -523,12 +529,12 @@ def get_task_outputs(task_id: int, limit: int = 500) -> List[Dict[str, Any]]:
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT * FROM task_outputs WHERE task_id = ? ORDER BY created_at DESC LIMIT ?",
+        "SELECT * FROM task_outputs WHERE task_id = ? ORDER BY id LIMIT ?",
         (task_id, limit)
     )
     rows = [dict(row) for row in cursor.fetchall()]
     conn.close()
-    return rows[::-1]  # chronological
+    return rows
 
 
 def get_orphaned_queued_tasks() -> List[Dict[str, Any]]:
