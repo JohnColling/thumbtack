@@ -42,8 +42,9 @@ def _db():
     return conn
 
 # ── Orchestrator Heartbeat ────────────────────────────────────────────
-HEARTBEAT_INTERVAL = 900  # 15 minutes
+HEARTBEAT_INTERVAL = 30   # 30 seconds for responsive dev mode
 HEARTBEAT_TASK: asyncio.Task | None = None
+HEARTBEAT_STARTED = False  # idempotency guard
 ORCHESTRATOR_STATE = {
     "last_wake": None,
     "status": "idle",  # idle | scanning | running | error
@@ -175,12 +176,41 @@ class AgentProcess:
 ACTIVE: Dict[int, AgentProcess] = {}
 
 # ── FastAPI ─────────────────────────────────────────────────────────────
+def _is_fresh_restart():
+    """True if a SYSTEM/RESTART log exists within the last 60 seconds."""
+    conn = _db()
+    rows = conn.execute(
+        "SELECT level, timestamp FROM agent_log WHERE level IN ('SYSTEM','RESTART') ORDER BY id DESC LIMIT 1"
+    ).fetchall()
+    conn.close()
+    if not rows:
+        return False
+    ts_str = rows[0]["timestamp"]
+    try:
+        ts = datetime.fromisoformat(ts_str)
+        # DB timestamps may be naive; attach Brisbane tz if needed
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=TZ)
+        now = datetime.now(TZ)
+        return (now - ts).total_seconds() < 60
+    except Exception:
+        return False
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global HEARTBEAT_TASK
+    global HEARTBEAT_TASK, HEARTBEAT_STARTED
     init_db()
-    add_agent_log("SYSTEM", "ThumbTack orchestrator started. Heartbeat armed.")
-    HEARTBEAT_TASK = asyncio.create_task(_orchestrator_heartbeat())
+    is_restart = _is_fresh_restart()
+    event_type = "RESTART" if is_restart else "SYSTEM"
+    msg = (
+        "ThumbTack orchestrator restarted after crash. Heartbeat armed."
+        if is_restart else
+        "ThumbTack orchestrator started. Heartbeat armed."
+    )
+    add_agent_log(event_type, msg)
+    if not HEARTBEAT_STARTED:
+        HEARTBEAT_STARTED = True
+        HEARTBEAT_TASK = asyncio.create_task(_orchestrator_heartbeat())
     yield
     if HEARTBEAT_TASK and not HEARTBEAT_TASK.done():
         HEARTBEAT_TASK.cancel()
