@@ -1,43 +1,36 @@
-# ThumbTack — Session Resume
+# ThumbTack Orchestrator — Session Resume
 
-**Updated:** 2026-05-05 17:23:53 AEST
-**Branch:** master
+## Current State
+**Phase:** 3 (Agent Worker Pool) — ~90% complete
+**Branch:** master (pushed to GitHub)
+**Server:** Running on port 3456
+**Database:** thumbtack.db (SQLite)
 
-## Current Status
+## What's Working
+- Worker pool dispatches tasks, spawns agents with subprocess isolation
+- Task outputs captured to task_outputs table
+- Status lifecycle: queued → running → done/failed
+- WebSocket streaming for live output
+- Pause/resume/stop controls via API
 
-- **Server:** Running on port 3456 (uvicorn background PID — started directly, systemd disabled during dev)
-- **Phase:** Phase 2 COMPLETE (Human-Driven Pipeline)
-- **Next:** Phase 3 — Agent Worker Pool (spawn real agents, isolate workspaces, stream output, mark done/failed)
+## WIP: Task Decomposition Engine
+- `task_decomposer.py` created (222 lines)
+- Connects to localhost:11434 Ollama for LLM planning
+- **BUG:** LLM calls timeout at ~60s despite keep_alive=-1 and timeout=180
+- `kimi-k2.6:cloud` model via Ollama is not responding reliably to API calls
+- **NOTE:** `glm-4.7-flash` on Ollama is extremely slow (minutes) for decomposition
+- **Next:** Fix LLM call mechanism — different endpoint/port, batch approach, or template-based decomposition
+- Endpoints added: POST /api/tasks/{tid}/auto-plan (not yet fully tested)
+- UI: "Auto Plan" modal added in app.js
 
-## Active Artifacts
+## Known Issues
+1. `claude -p` agent on worker_pool.py line 51 passes task data via env vars (no stdin prompt) — causes exit code 1
+2. Task outputs order by `created_at` (second precision) — lines within same second may be out of order
+3. LLM decomposition timeout — needs robust retry/fallback (template-based) + stream-based approach
 
-| File | Status |
-|------|--------|
-| `main.py` | Phase 2 task API + heartbeat restart guard |
-| `database.py` | Canonical schema + all task helpers |
-| `templates/index.html` | Phase 2 UI (decompose/approve/reject buttons) |
-| `static/app.js` | Updated task actions |
-| `test_api.sh` | API smoke tests (10/10 pass) |
+## Session Interrupted
+- Mid-debug on `task_decomposer.py` LLM timeout issue
+- Context hibernation triggered by user
 
-## Critical Bugs Fixed This Session
-
-1. **Systemd `fuser -k` murder loop** — `ExecStartPre` in service file was SIGKILLing the server on every restart, causing 3,273 restarts. Fixed by running uvicorn directly outside systemd during dev.
-2. **Heartbeat idempotency** — Added `HEARTBEAT_STARTED` guard in lifespan to prevent duplicate heartbeat tasks on restart.
-3. **Restart detection** — Lifespan checks for SYSTEM/RESTART log within 60s, logs `RESTART` instead of `SYSTEM`.
-
-## Git Status
-
-```
-2884836 Phase 2: Add restart detection to prevent duplicate heartbeat tasks on systemd restart loops
----
- M RESUME.md
- M thumbtack.db
-```
-
-## Quick Resume Command
-
-```bash
-cd ~/github/johncolling/thumbtack
-source venv/bin/activate
-python -m uvicorn main:app --host 0.0.0.0 --port 3456 &
-```
+## Next Action
+Resolve LLM timeout in `task_decomposer.py` and test end-to-end auto-decomposition flow.

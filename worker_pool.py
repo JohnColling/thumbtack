@@ -101,11 +101,15 @@ class TaskAgent:
         )
         self._alive = True
 
-        # Feed the task prompt to stdin (non-blocking so it doesn't deadlock)
+        # Feed the task prompt to stdin and close it so the CLI sees EOF
         if self.proc and self.proc.stdin:
             prompt_text = f"Task: {self.task_id}\nPrompt: {self.custom_command or 'Execute this task'}\n"
-            self.proc.stdin.write(prompt_text)
-            self.proc.stdin.flush()
+            try:
+                self.proc.stdin.write(prompt_text)
+                self.proc.stdin.flush()
+                self.proc.stdin.close()
+            except BrokenPipeError:
+                pass  # process already exited
 
         # DB agent row (status=running)
         self.agent_id = create_agent(

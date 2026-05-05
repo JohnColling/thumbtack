@@ -360,7 +360,7 @@ async def kill_agent(aid: int):
 @app.get("/api/agents/{aid}/output")
 async def get_output(aid: int, limit: int=200):
     conn = _db(); cur = conn.cursor()
-    cur.execute("SELECT output as line, is_stderr as stream, created_at FROM agent_output WHERE agent_id=? ORDER BY created_at DESC LIMIT ?",(aid,limit))
+    cur.execute("SELECT output as line, is_stderr as stream, created_at FROM agent_output WHERE agent_id=? ORDER BY id DESC LIMIT ?",(aid,limit))
     rows = [dict(r) for r in cur.fetchall()]
     conn.close()
     for r in rows:
@@ -586,7 +586,7 @@ async def ws_agent(websocket: WebSocket, aid: int):
     ACTIVE[aid].register_client(websocket)
     # send history
     conn = _db(); cur = conn.cursor()
-    cur.execute("SELECT output as line, is_stderr FROM agent_output WHERE agent_id=? ORDER BY created_at DESC LIMIT 100", (aid,))
+    cur.execute("SELECT output as line, is_stderr FROM agent_output WHERE agent_id=? ORDER BY id DESC LIMIT 100", (aid,))
     for row in cur.fetchall()[::-1]:
         await websocket.send_json({"stream":"stderr" if row["is_stderr"] else "stdout","data":row["output"]})
     conn.close()
@@ -614,7 +614,7 @@ async def ws_task(websocket: WebSocket, tid: int):
     task_agent.register_ws(websocket)
     # send recent history from DB (via the agent_id)
     conn = _db(); cur = conn.cursor()
-    cur.execute("SELECT output, is_stderr FROM agent_output WHERE agent_id=? ORDER BY created_at DESC LIMIT 200",
+    cur.execute("SELECT output, is_stderr FROM agent_output WHERE agent_id=? ORDER BY id DESC LIMIT 200",
                 (task_agent.agent_id,))
     for row in cur.fetchall()[::-1]:
         await websocket.send_json({"stream":"stderr" if row[1] else "stdout","data":row[0]})
