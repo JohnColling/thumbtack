@@ -1,60 +1,38 @@
-# RESUME.md — ThumbTack Orchestrator Session
-## Session: 2026-05-05 Morning
+# ThumbTack — Session Resume
 
-### Current State
-- **Project**: ThumbTack (~/github/johncolling/thumbtack)
-- **Server**: Running on port 3456 via systemd user service
-- **HEAD**: `d884046` — feat(orchestrator): Phase 1 heartbeat + system console
+**Project:** ThumbTack — Multi-agent AI orchestrator  
+**Repo:** https://github.com/johncolling/thumbtack  
+**Port:** 3456 (http://10.0.0.53:3456)  
+**Status:** Phase 2 COMPLETE — Task Queue + Human Approval Gate live
 
-### What Was Just Built (Phase 1: Skeleton & Heartbeat)
+## Current State
+- Phase 1: System Console + Heartbeat — DONE ✅
+- Phase 2: Task Queue + Human Approval Gate — DONE ✅
+- Phase 3: Agent Worker Pool (spawn real agents) — NEXT ⏳
 
-#### Database
-- `agent_log` table: timestamp, level, message, task_id, agent_id, project_id
-- Helper functions: `add_agent_log()`, `get_agent_logs()`, `get_recent_agent_logs()`
+## What Was Done Last Session
+- Migrated `tasks` table to Phase 2 schema (title, desc, priority, parent_task_id, planned_at, approved_at)
+- Added task API: create, get, list, decompose, approve, reject, update, delete
+- Added subtask creation via `POST /api/tasks/{id}/decompose` with subtasks array
+- Added human approval gate: `POST /api/tasks/{id}/approve`
+- Heartbeat now scans pending/queued/running separately and logs counts
+- Database.py unified with canonical `init_db()` and new task helpers
+- Updated `app.js` Task Queue UI with Decompose/Approve/Reject buttons
+- All endpoints verified live against running server
+- Committed and pushed to GitHub (master → b0f57f0)
 
-#### Backend
-- `_orchestrator_heartbeat()` — asyncio background loop, wakes every 15 min
-- Scans `tasks` table for pending/running work
-- Logs `AGENT_WAKE` → `AGENT_SCAN` → `AGENT_IDLE` or `AGENT_TASK_FOUND`
-- FastAPI `lifespan` manager — starts heartbeat on app boot, cancels on shutdown
-- `/api/orchestrator/status` — returns current status, last wake, tick count, active tasks
-- `/api/agent-log` — returns last N log entries with filtering by level/project
+## Next Action (when we resume)
+Start Phase 3: Agent Worker Pool
+- Spawn actual coding agents (claude-code, codex) as subprocesses
+- Each agent gets isolated per-task git workspace
+- Stream output back to dashboard
+- Mark subtask done/failed on completion
+- Reconcile running agents every heartbeat tick
 
-#### Frontend
-- System Console panel: fixed bottom of screen, collapsible
-- Status dot with states: idle (grey), scanning (yellow), running (orange), error (red)
-- Polling every 5s for logs + status
-- Color-coded log levels with animations
-
-#### Roadmap
-- `ROADMAP.md` created with full 4-phase vision:
-  - Phase 1: Skeleton & Heartbeat (DONE)
-  - Phase 2: Human-Driven Pipeline
-  - Phase 3: Autonomous Delegation
-  - Phase 4: True Autonomy
-
-### Architecture Vision (Confirmed)
-ThumbTack is the orchestrator. Hermes is just the dev tool for building it.
-- Persistent FastAPI server with heartbeat
-- SQLite task queue
-- Specialist agent workers spawned on-demand (Claude Code, Codex, etc.)
-- Human gives one high-level goal → ThumbTack plans → John approves → runs autonomously
-- Human reviews completed work in batches
-
-### Next Tasks (from Things to Do.md)
-1. Test the heartbeat loop — verify it fires and logs appear in System Console
-2. Restart uvicorn to load the lifespan manager
-3. Phase 2: Human-driven pipeline (task creation → decomposition → approval → execution)
-4. External API for outside service triggers
-5. Token visibility gauge in UI
-
-### Files Modified This Session
-- `ROADMAP.md` (new)
-- `database.py` (agent_log table + helpers)
-- `main.py` (heartbeat loop + lifespan + endpoints)
-- `templates/index.html` (System Console panel)
-
-### Environment
-- John: Bundamba, Queensland, Australia
-- Server IP: 10.0.0.53:3456
-- Model: kimi-k2.6 (262k context)
+## Files to Know
+- `main.py` — FastAPI server with all routes
+- `database.py` — SQLite schema + helpers
+- `models.py` — Pydantic schemas
+- `static/app.js` — frontend logic
+- `templates/index.html` — main UI
+- `ROADMAP.md` — full roadmap
