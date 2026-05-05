@@ -287,7 +287,9 @@ function renderTaskQueue(){
         let actions='';
         if(t.status==='pending') actions+=`<button onclick="decomposePrompt(${t.id})">Decompose</button>`;
         if(t.status==='planning') actions+=`<button onclick="approveTask(${t.id})">Approve</button><button onclick="rejectTask(${t.id})">Reject</button>`;
-        if(t.status==='approved') actions+=`<span style="color:var(--accent-green)">Queued</span>`;
+        if(t.status==='approved') actions+=`<span style="color:var(--accent2);font-size:11px">Queued</span>`;
+        if(t.status==='queued') actions+=`<button onclick="dispatchTask(${t.id})">Dispatch</button>`;
+        if(t.status==='running') actions+=`<button onclick="stopTask(${t.id})">Stop</button><button onclick="streamTask(${t.id})">Stream</button>`;
         actions+=`<button onclick="deleteTask(${t.id})">Delete</button>`;
         return `<div class="task-item"><span class="status ${statusClass}">${t.status}</span><span class="text"><strong>${escapeHtml(t.title)}</strong>${t.description?'<br><small>'+escapeHtml(t.description)+'</small>':''}</span><span class="result">${t.result||''}</span><div class="actions">${actions}</div></div>`;
     }).join('');
@@ -322,6 +324,38 @@ async function clearCompletedTasks(){
     for(const t of done){await api(`/api/tasks/${t.id}`,{method:'DELETE'});}
     showToast(`Cleared ${done.length} done tasks`);
     await loadTaskQueue();
+}
+
+// Phase 3 — Worker Pool actions
+async function dispatchTask(id){
+    await api(`/api/tasks/${id}/dispatch`,{method:'POST'});
+    showToast(`Task #${id} dispatched`);
+    await loadTaskQueue();
+}
+async function stopTask(id){
+    await api(`/api/tasks/${id}/stop`,{method:'POST'});
+    showToast(`Task #${id} stopped`);
+    await loadTaskQueue();
+}
+let taskWs = null;
+function streamTask(id){
+    // open mini terminal overlay for task output
+    if(taskWs){ taskWs.close(); taskWs=null; }
+    const term = $('#agentTerminal');
+    term.innerHTML = '';
+    showModal('agentTerminalModal');
+    taskWs = new WebSocket(`ws://${location.host}/ws/tasks/${id}`);
+    taskWs.onmessage = (e) => {
+        try{
+            const msg = JSON.parse(e.data);
+            const line = document.createElement('div');
+            line.className = msg.stream==='stderr' ? 'term-line stderr' : 'term-line';
+            line.textContent = msg.data;
+            term.appendChild(line);
+            term.scrollTop = term.scrollHeight;
+        }catch(err){}
+    };
+    taskWs.onclose = () => { taskWs=null; };
 }
 
 // ─── Tabs ───

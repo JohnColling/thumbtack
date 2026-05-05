@@ -123,7 +123,7 @@ class AgentProcess:
                 try:
                     rem = pipe.read()
                     if rem:
-                        for ln in rem.splitlines(): await self._broadcast(ln.rstrip("\\n"), pipe==self.proc.stderr)
+                        for ln in rem.splitlines(): await self._broadcast(ln.rstrip("\n"), pipe==self.proc.stderr)
                 except: pass
         await self._broadcast("[Agent process ended]", False)
 

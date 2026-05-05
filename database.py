@@ -84,6 +84,7 @@ def init_db():
         parent_task_id INTEGER,
         assigned_agent_id INTEGER,
         assigned_agent_type TEXT DEFAULT 'claude',
+        command TEXT DEFAULT '',
         result TEXT DEFAULT '',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         planned_at TIMESTAMP,
@@ -128,6 +129,19 @@ def init_db():
         agent_id INTEGER NOT NULL,
         output TEXT, is_stderr INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS task_outputs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        task_id INTEGER NOT NULL,
+        agent_id INTEGER,
+        output TEXT NOT NULL,
+        is_stderr INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (task_id) REFERENCES tasks(id),
+        FOREIGN KEY (agent_id) REFERENCES agents(id)
     )
     """)
 
@@ -492,4 +506,44 @@ def get_recent_agent_logs(minutes: int = 60) -> List[Dict[str, Any]]:
     conn.close()
     return rows
 
+def add_task_output(task_id: int, output: str, agent_id: int = None, is_stderr: bool = False) -> int:
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO task_outputs (task_id, agent_id, output, is_stderr) VALUES (?, ?, ?, ?)",
+        (task_id, agent_id, output, 1 if is_stderr else 0)
+    )
+    oid = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return oid
 
+
+def get_task_outputs(task_id: int, limit: int = 500) -> List[Dict[str, Any]]:
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT * FROM task_outputs WHERE task_id = ? ORDER BY created_at DESC LIMIT ?",
+        (task_id, limit)
+    )
+    rows = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return rows[::-1]  # chronological
+
+
+def get_orphaned_queued_tasks() -> List[Dict[str, Any]]:
+    """Return queued tasks whose parent is approved (ready to run)."""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT t.* FROM tasks t
+        LEFT JOIN tasks parent ON t.parent_task_id = parent.id
+        WHERE t.status = 'queued'
+        AND (t.parent_task_id IS NULL OR parent.status = 'approved')
+        ORDER BY t.priority, t.created_at
+        """
+    )
+    rows = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return rows
