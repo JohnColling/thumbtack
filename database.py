@@ -77,15 +77,21 @@ def init_db():
     CREATE TABLE IF NOT EXISTS tasks (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         project_id INTEGER NOT NULL,
-        agent_id INTEGER,
-        command TEXT NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT DEFAULT '',
+        priority INTEGER DEFAULT 3,
         status TEXT DEFAULT 'pending',
+        parent_task_id INTEGER,
+        assigned_agent_id INTEGER,
         result TEXT DEFAULT '',
-        created_at TEXT DEFAULT '',
-        started_at TEXT,
-        completed_at TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        planned_at TIMESTAMP,
+        approved_at TIMESTAMP,
+        started_at TIMESTAMP,
+        completed_at TIMESTAMP,
         FOREIGN KEY (project_id) REFERENCES projects(id),
-        FOREIGN KEY (agent_id) REFERENCES agents(id)
+        FOREIGN KEY (parent_task_id) REFERENCES tasks(id),
+        FOREIGN KEY (assigned_agent_id) REFERENCES agents(id)
     )
     """)
 
