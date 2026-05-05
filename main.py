@@ -17,6 +17,8 @@ from pydantic import BaseModel
 from contextlib import asynccontextmanager
 from database import init_db, add_agent_log, get_agent_logs, create_task as db_create_task, list_tasks as db_list_tasks, get_task as db_get_task, update_task_status, create_subtasks, get_subtasks, get_pending_tasks, get_queued_tasks, get_running_tasks, delete_task as db_delete_task
 
+from worker_pool import get_pool, start_pool, stop_pool
+
 # ── Paths ───────────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB = os.path.join(BASE_DIR, "thumbtack.db")
@@ -42,53 +44,39 @@ def _db():
     return conn
 
 # ── Orchestrator Heartbeat ────────────────────────────────────────────
-HEARTBEAT_INTERVAL = 30   # 30 seconds for responsive dev mode
+HEARTBEAT_INTERVAL = 10   # 10 seconds — quick dispatch during dev
 HEARTBEAT_TASK: asyncio.Task | None = None
 HEARTBEAT_STARTED = False  # idempotency guard
 ORCHESTRATOR_STATE = {
     "last_wake": None,
-    "status": "idle",  # idle | scanning | running | error
+    "status": "idle",
     "active_tasks": 0,
     "total_ticks": 0,
 }
 
 async def _orchestrator_heartbeat():
-    """Background loop: wakes on interval, scans queue, logs status."""
+    """Background loop: tick → pool.dispatch."""
+    await start_pool()
     while True:
         ORCHESTRATOR_STATE["last_wake"] = datetime.now(TZ).isoformat()
         ORCHESTRATOR_STATE["total_ticks"] += 1
-        add_agent_log("AGENT_WAKE", f"Orchestrator heartbeat tick #{ORCHESTRATOR_STATE['total_ticks']}")
 
         try:
-            pending = get_pending_tasks()
-            queued  = get_queued_tasks()
+            pool = get_pool()
+            await pool.tick()
+
             running = get_running_tasks()
-
-            pending_count = len(pending)
-            queued_count  = len(queued)
+            queued  = get_queued_tasks()
             running_count = len(running)
-
+            queued_count  = len(queued)
             ORCHESTRATOR_STATE["active_tasks"] = running_count
 
-            if pending_count == 0 and queued_count == 0 and running_count == 0:
-                add_agent_log("AGENT_IDLE", f"Queue empty. Sleeping {HEARTBEAT_INTERVAL}s.")
+            if running_count == 0 and queued_count == 0:
                 ORCHESTRATOR_STATE["status"] = "idle"
+            elif running_count > 0:
+                ORCHESTRATOR_STATE["status"] = "running"
             else:
-                add_agent_log("AGENT_SCAN", f"{pending_count} pending | {queued_count} queued | {running_count} running")
                 ORCHESTRATOR_STATE["status"] = "scanning"
-
-                if pending_count > 0:
-                    # Phase 2: oldest pending task gets flagged for human decomposition
-                    oldest = pending[0]
-                    add_agent_log("TASK_PENDING", f"Task #{oldest['id']} '{oldest['title'][:40]}' waiting for decomposition/approval", task_id=oldest['id'])
-
-                if queued_count > 0:
-                    # Phase 3 (future): dispatch queued subtasks to agents
-                    add_agent_log("TASK_QUEUED", f"{queued_count} subtasks ready for agent dispatch (Phase 3)")
-
-                if running_count > 0:
-                    for t in running:
-                        add_agent_log("TASK_RUNNING", f"Task #{t['id']} running (agent #{t.get('assigned_agent_id')})", task_id=t['id'])
 
         except Exception as e:
             add_agent_log("AGENT_ERROR", f"Heartbeat tick failed: {e}")
@@ -96,8 +84,9 @@ async def _orchestrator_heartbeat():
 
         await asyncio.sleep(HEARTBEAT_INTERVAL)
 
-# ── AgentProcess ────────────────────────────────────────────────────────
+# ── Agent Compatibility Shim ────────────────────────────────────────────
 class AgentProcess:
+    """Legacy free-running agent (spawn button). Wraps a subprocess directly."""
     def __init__(self, aid: int, atype: str, proj_path: str, cmd: Optional[str]):
         self.aid = aid; self.atype = atype; self.path = proj_path; self.cmd = cmd
         self.proc: subprocess.Popen | None = None
@@ -106,17 +95,17 @@ class AgentProcess:
 
     async def start(self):
         cmds = {
-            "claude": (["claude","-p","--cwd",self.path] if os.path.exists("/usr/local/bin/claude") else ["python","-c","print('claude command placeholder: ',input())"]),
-            "codex": ["codex"] if os.path.exists("/usr/local/bin/codex") else ["python","-c","print('codex placeholder:',input())"],
-            "opencode": ["opencode"] if os.path.exists("/usr/local/bin/opencode") else ["python","-c","print('opencode placeholder:',input())"],
-            "openclaw": ["openclaw"] if os.path.exists("/usr/local/bin/openclaw") else ["python","-c","print('openclaw placeholder:',input())"],
-            "aider": ["aider","--no-auto-commits"] if os.path.exists("/usr/local/bin/aider") else ["python","-c","print('aider placeholder:',input())"],
-            "custom": ([] if not self.cmd else self.cmd.split())
+            "claude":   (["/home/administrator/.local/bin/claude","-p","--cwd",self.path]
+                         if os.path.isfile("/home/administrator/.local/bin/claude")
+                         else ["python","-c","print('claude placeholder:',input())"]),
+            "codex":    ["codex"] if os.path.isfile("/usr/local/bin/codex") else ["python","-c","print('codex placeholder:',input())"],
+            "aider":    ["aider","--no-auto-commits"] if os.path.isfile("/usr/local/bin/aider") else ["python","-c","print('aider placeholder:',input())"],
+            "custom":   ([] if not self.cmd else self.cmd.split())
         }
-        cmd = self.cmd.split() if self.cmd else cmds.get(self.atype, [])
+        cmd = self.cmd.split() if self.cmd else cmds.get(self.atype, ["python","-c","print('placeholder:',input())"])
         if not cmd: raise ValueError(f"No command for {self.atype}")
         self.proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                       stderr=subprocess.PIPE, cwd=self.path, text=True, bufsize=1)
+                                     stderr=subprocess.PIPE, cwd=self.path, text=True, bufsize=1)
         self._read_task = asyncio.create_task(self._reader())
 
     async def _reader(self):
@@ -125,34 +114,36 @@ class AgentProcess:
             for pipe, is_err in [(self.proc.stdout, False), (self.proc.stderr, True)]:
                 try:
                     line = await loop.run_in_executor(None, pipe.readline)
-                    if line: await self._broadcast(line.rstrip(), is_err)
+                    if line: await self._broadcast(line.rstrip("\n"), is_err)
                 except: pass
             await asyncio.sleep(0.05)
         # flush remaining
         if self.proc:
-            for pipe in [self.proc.stdout, self.proc.stderr]:
+            for pipe, is_err in [(self.proc.stdout, False), (self.proc.stderr, True)]:
                 try:
                     rem = pipe.read()
                     if rem:
-                        for ln in rem.splitlines(): await self._broadcast(ln.rstrip(), pipe==self.proc.stderr)
+                        for ln in rem.splitlines(): await self._broadcast(ln.rstrip("\\n"), pipe==self.proc.stderr)
                 except: pass
         await self._broadcast("[Agent process ended]", False)
 
     async def _broadcast(self, line: str, is_err: bool):
         dead=[]
+        stream = "stderr" if is_err else "stdout"
         for ws in list(self._clients):
-            try: await ws.send_json({"stream":"stderr" if is_err else "stdout","data":line})
+            try: await ws.send_json({"stream":stream,"data":line})
             except: dead.append(ws)
         for d in dead:
             if d in self._clients: self._clients.remove(d)
         conn = sqlite3.connect(DB)
         c = conn.cursor()
-        c.execute("INSERT INTO agent_output (agent_id,output,is_stderr) VALUES (?,?,?)",(self.aid,line,1 if is_err else 0))
+        c.execute("INSERT INTO agent_output (agent_id,output,is_stderr) VALUES (?,?,?)",
+                  (self.aid, line, 1 if is_err else 0))
         conn.commit(); conn.close()
 
     async def send(self, cmd: str):
         if self.proc and self.proc.stdin:
-            self.proc.stdin.write(cmd+"\n"); self.proc.stdin.flush()
+            self.proc.stdin.write(cmd+"\\n"); self.proc.stdin.flush()
             await self._broadcast(">>> "+cmd, False)
 
     async def stop(self):
@@ -568,6 +559,61 @@ async def ws_agent(websocket: WebSocket, aid: int):
     except WebSocketDisconnect: pass
     finally:
         if aid in ACTIVE: ACTIVE[aid].unregister_client(websocket)
+
+# ─── Task WebSocket (Phase 3) ────────────────────────────────────────────
+@app.websocket("/ws/tasks/{tid}")
+async def ws_task(websocket: WebSocket, tid: int):
+    """Stream output from a task-bound agent (Phase 3 WorkerPool)."""
+    await websocket.accept()
+    pool = get_pool()
+    task_agent = pool.get_agent(tid)
+    if not task_agent:
+        await websocket.send_json({"type":"error","message":"Task not running"})
+        await websocket.close(); return
+    task_agent.register_ws(websocket)
+    # send recent history from DB (via the agent_id)
+    conn = _db(); cur = conn.cursor()
+    cur.execute("SELECT output, is_stderr FROM agent_output WHERE agent_id=? ORDER BY created_at DESC LIMIT 200",
+                (task_agent.agent_id,))
+    for row in cur.fetchall()[::-1]:
+        await websocket.send_json({"stream":"stderr" if row[1] else "stdout","data":row[0]})
+    conn.close()
+    try:
+        while True:
+            data = await websocket.receive_text()
+            try: payload = json.loads(data)
+            except: continue
+            if payload.get("type") == "command":
+                ta = pool.get_agent(tid)
+                if ta:
+                    await ta.send_cmd(payload.get("command",""))
+    except WebSocketDisconnect: pass
+    finally:
+        ta = pool.get_agent(tid)
+        if ta:
+            ta.unregister_ws(websocket)
+
+@app.post("/api/tasks/{tid}/dispatch")
+async def dispatch_task(tid: int, data: dict = None):
+    """Manual dispatch a queued task to the worker pool."""
+    task = db_get_task(tid)
+    if not task: raise HTTPException(404, "Task not found")
+    if task["status"] != "queued":
+        raise HTTPException(400, f"Task must be 'queued', is '{task['status']}'")
+    pool = get_pool()
+    await pool.tick()   # triggers immediate dispatch attempt
+    return {"status": "dispatched", "task_id": tid}
+
+@app.post("/api/tasks/{tid}/stop")
+async def stop_task(tid: int):
+    """Force-stop a running task."""
+    task = db_get_task(tid)
+    if not task: raise HTTPException(404, "Task not found")
+    pool = get_pool()
+    await pool.stop_task(tid)
+    add_agent_log("TASK_STOPPED", f"Task #{tid} stopped by user", task_id=tid)
+    return {"status": "stopped", "task_id": tid}
+
 
 # ─── Git ──────────────────────────────────────────────────────────
 @app.get("/api/projects/{pid}/git/status")

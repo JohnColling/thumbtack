@@ -83,6 +83,7 @@ def init_db():
         status TEXT DEFAULT 'pending',
         parent_task_id INTEGER,
         assigned_agent_id INTEGER,
+        assigned_agent_type TEXT DEFAULT 'claude',
         result TEXT DEFAULT '',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         planned_at TIMESTAMP,
