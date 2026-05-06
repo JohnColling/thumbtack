@@ -261,6 +261,67 @@
             opacity: 0.7;
         }
 
+        /* ─── Token Usage Widget ─── */
+        .token-widget {
+            width: 100%;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--bg2);
+            padding: 10px 12px;
+            margin: 4px 0;
+            font-size: 11px;
+            cursor: pointer;
+            transition: border-color 0.2s ease;
+        }
+        .token-widget:hover { border-color: var(--accent); }
+        .token-widget .tw-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+        .token-widget .tw-header span:first-child {
+            font-weight: 600;
+            color: var(--fg);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .token-widget .tw-header .tw-conn {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--fg-dim);
+        }
+        .token-widget .tw-header .tw-conn.online {
+            background: var(--accent2);
+            box-shadow: 0 0 4px var(--accent2);
+        }
+        .token-widget .tw-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 2px 0;
+            color: var(--fg-dim);
+        }
+        .token-widget .tw-row .tw-val {
+            color: var(--fg);
+            font-family: var(--mono);
+            font-variant-numeric: tabular-nums;
+        }
+        .token-widget .tw-cost {
+            border-top: 1px solid var(--border);
+            margin-top: 4px;
+            padding-top: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .token-widget .tw-cost .tw-val {
+            color: var(--accent); /* orange accent for $$$ */
+            font-weight: 600;
+            font-size: 12px;
+        }
+
         /* ─── 3D Nav Dial Button ─── */
         .nav-dial-btn {
             width: 44px;
@@ -1307,6 +1368,18 @@
             </div>
         </div>
         <div class="sidebar-footer">
+            <!-- Token Usage Widget -->
+            <div class="token-widget" id="tokenWidget" title="Click for full usage details">
+                <div class="tw-header">
+                    <span>&#x1f4c8; Token Usage</span>
+                    <div class="tw-conn" id="tokenConn"></div>
+                </div>
+                <div class="tw-row"><span>Requests</span><span class="tw-val" id="twReqs">&ndash;</span></div>
+                <div class="tw-row"><span>Input</span><span class="tw-val" id="twIn">0</span></div>
+                <div class="tw-row"><span>Output</span><span class="tw-val" id="twOut">0</span></div>
+                <div class="tw-row"><span>Total</span><span class="tw-val" id="twTot">0</span></div>
+                <div class="tw-cost"><span>Cost</span><span class="tw-val" id="twCost">$0.00</span></div>
+            </div>
             <!-- 3D Nav Dial Button -->
             <button class="nav-dial-btn" id="navDialBtn" onclick="toggleNavDial()" title="Navigate">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">

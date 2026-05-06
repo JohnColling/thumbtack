@@ -22,11 +22,15 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
 from contextlib import asynccontextmanager
-from database import init_db, add_agent_log, get_agent_logs, create_task as db_create_task, list_tasks as db_list_tasks, get_task as db_get_task, update_task_status, create_subtasks, get_subtasks, get_pending_tasks, get_queued_tasks, get_running_tasks, delete_task as db_delete_task, get_task_outputs
+from database import (init_db, add_agent_log, get_agent_logs, create_task as db_create_task, list_tasks as db_list_tasks, get_task as db_get_task, update_task_status, create_subtasks, get_subtasks, get_pending_tasks, get_queued_tasks, get_running_tasks, delete_task as db_delete_task, get_task_outputs,
+    add_token_usage, get_session_token_usage, get_project_token_usage, get_all_sessions_usage)
+from models import TokenUsageRecord, TokenUsageResponse
 
 from worker_pool import get_pool, start_pool, stop_pool
 from task_decomposer import decompose_task
 import azure_client
+import hermes_bridge
+from usage_tracker import UsageStats
 
 # ── Paths ───────────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -965,6 +969,141 @@ async def agent_log(limit: int = 50, level: str = None, project_id: int = None):
 
 @app.get("/api/health")
 async def health(): return {"status":"ok","agents":len(ACTIVE)}
+
+# ─── Token Usage ─────────────────────────────────────────────────────────
+TOKEN_WS_CLIENTS: Dict[str, List[WebSocket]] = {}
+
+def _broadcast_token_update(session_id: str):
+    """Push updated token stats to all connected WebSocket clients."""
+    stats = get_session_token_usage(session_id)
+    # Clean None values
+    for k in stats:
+        if stats[k] is None:
+            stats[k] = 0
+    payload = {"type": "token_update", "data": stats}
+    clients = TOKEN_WS_CLIENTS.get(session_id, [])
+    dead = []
+    for ws in list(clients):
+        try:
+            asyncio.create_task(ws.send_json(payload))
+        except Exception:
+            dead.append(ws)
+    for d in dead:
+        if d in clients:
+            clients.remove(d)
+
+@app.post("/api/token-usage")
+async def record_token_usage(record: TokenUsageRecord):
+    usage_id = add_token_usage(
+        session_id=record.session_id,
+        project_id=record.project_id,
+        task_id=record.task_id,
+        agent_id=record.agent_id,
+        model=record.model,
+        request_count=record.request_count,
+        input_tokens=record.input_tokens,
+        output_tokens=record.output_tokens,
+        total_tokens=record.total_tokens,
+        cached_tokens=record.cached_tokens,
+        reasoning_tokens=record.reasoning_tokens,
+        cost=record.cost,
+    )
+    _broadcast_token_update(record.session_id)
+    return {"id": usage_id, "session_id": record.session_id}
+
+@app.get("/api/token-usage/session/{session_id}")
+async def get_session_tokens(session_id: str = "default"):
+    stats = get_session_token_usage(session_id)
+    # Clean None values
+    for k in stats:
+        if stats[k] is None:
+            stats[k] = 0 if k != "models" else ""
+    return {"session_id": session_id, "stats": stats}
+
+@app.get("/api/token-usage/project/{project_id}")
+async def get_project_tokens(project_id: int):
+    stats = get_project_token_usage(project_id)
+    # Clean None values
+    for k in stats:
+        if stats[k] is None:
+            stats[k] = 0
+    return {"project_id": project_id, "stats": stats}
+
+@app.get("/api/token-usage/sessions")
+async def list_sessions_usage():
+    return {"sessions": get_all_sessions_usage()}
+
+@app.websocket("/ws/tokens/{session_id}")
+async def token_websocket(websocket: WebSocket, session_id: str):
+    await websocket.accept()
+    if session_id not in TOKEN_WS_CLIENTS:
+        TOKEN_WS_CLIENTS[session_id] = []
+    TOKEN_WS_CLIENTS[session_id].append(websocket)
+    try:
+        # Send current stats
+        stats = get_session_token_usage(session_id)
+        for k in stats:
+            if stats[k] is None:
+                stats[k] = 0 if k != "models" else ""
+        await websocket.send_json({"type": "token_update", "data": stats})
+        while True:
+            # Keep connection alive, wait for ping or client close
+            data = await websocket.receive_text()
+            if data == "ping":
+                await websocket.send_text("pong")
+    except WebSocketDisconnect:
+        pass
+    finally:
+        if session_id in TOKEN_WS_CLIENTS and websocket in TOKEN_WS_CLIENTS[session_id]:
+            TOKEN_WS_CLIENTS[session_id].remove(websocket)
+
+# ─── Hermes ──────────────────────────────────────────────────────────────
+@app.get("/api/hermes/status")
+async def hermes_status():
+    """Check if the Hermes bridge has pending tasks."""
+    bridge = hermes_bridge.get_hermes_bridge()
+    pending = bridge.get_pending_tasks()
+    return {
+        "status": "ok",
+        "pending_tasks": len(pending),
+        "task_dir": str(bridge.task_dir),
+    }
+
+@app.get("/api/hermes/pending")
+async def hermes_pending():
+    """List tasks waiting for Hermes to pick up."""
+    bridge = hermes_bridge.get_hermes_bridge()
+    return {"tasks": bridge.get_pending_tasks()}
+
+@app.post("/api/hermes/cancel/{task_id}")
+async def hermes_cancel_task(task_id: int):
+    """Cancel polling for a specific Hermes task."""
+    bridge = hermes_bridge.get_hermes_bridge()
+    cancelled = await bridge.cancel(task_id)
+    return {"cancelled": cancelled, "task_id": task_id}
+
+@app.websocket("/ws/hermes")
+async def hermes_websocket(websocket: WebSocket):
+    """WebSocket for live Hermes task progress updates."""
+    await websocket.accept()
+    bridge = hermes_bridge.get_hermes_bridge()
+    bridge.register_WS(websocket)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            if data == "ping":
+                await websocket.send_text("pong")
+            else:
+                try:
+                    payload = json.loads(data)
+                    if payload.get("type") == "subscribe":
+                        await websocket.send_json({"type": "subscribed"})
+                except json.JSONDecodeError:
+                    pass
+    except WebSocketDisconnect:
+        pass
+    finally:
+        bridge.unregister_WS(websocket)
 
 # Catch-all SPA redirect
 # ─── Placeholder Pages ───

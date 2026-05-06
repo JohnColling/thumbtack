@@ -12,7 +12,7 @@ import urllib.error
 import asyncio
 from typing import List, Dict, Any, Optional
 
-from database import add_agent_log, get_task, get_project
+from database import add_agent_log, get_task, get_project, add_token_usage
 
 # ── Config ───────────────────────────────────────────────────────────────────
 OLLAMA_URL = "http://127.0.0.1:11434/api/generate"
@@ -79,7 +79,6 @@ KEYWORD_RULES = [
     ("deploy",    ["Verify environment variables", "Build production bundle", "Run smoke tests in staging", "Execute deployment", "Validate health checks"]),
     ("fix",       ["Reproduce bug in isolated test", "Identify root cause", "Implement minimal fix", "Verify with regression test", "Update docs if needed"]),
     ("refactor",  ["Audit current code for smells", "Write characterization tests", "Apply refactor in small steps", "Verify all tests pass", "Update docs"]),
-    ("refactor",  ["Audit current code for smells", "Write characterization tests", "Apply refactor in small steps", "Verify all tests pass", "Update docs"]),
 ]
 
 
@@ -132,9 +131,9 @@ def _call_ollama_sync(
     model: str = MODEL,
     temperature: float = TEMPERATURE,
     timeout: float = TIMEOUT,
-) -> str:
+) -> tuple[str, dict]:
     """Synchronous call to Ollama /api/generate using urllib.
-    Returns the raw response text.
+    Returns (raw_response_text, usage_dict).
     """
     payload = {
         "model": model,
@@ -159,7 +158,14 @@ def _call_ollama_sync(
 
     resp = urllib.request.urlopen(req, timeout=timeout)
     result = json.loads(resp.read().decode("utf-8"))
-    return result.get("response", "")
+
+    usage = {
+        "input_tokens": result.get("prompt_eval_count", 0),
+        "output_tokens": result.get("eval_count", 0),
+        "total_tokens": result.get("eval_count", 0) + result.get("prompt_eval_count", 0),
+        "model": model,
+    }
+    return result.get("response", ""), usage
 
 
 def _extract_json(text: str) -> List[Dict]:
@@ -254,12 +260,26 @@ async def decompose_task(
 
     user_prompt = custom_prompt or _build_user_prompt(title, description, project_ctx)
 
-    raw_text = ""
+    raw_text, usage = "", {}
     try:
         loop = asyncio.get_event_loop()
-        raw_text = await loop.run_in_executor(
+        raw_text, usage = await loop.run_in_executor(
             None, _call_ollama_sync, user_prompt, url, model, TEMPERATURE, TIMEOUT
         )
+        # log token usage for decomposition
+        if usage and usage.get("total_tokens", 0) > 0:
+            from usage_tracker import calculate_cost
+            total_t = usage.get("total_tokens", 0)
+            cost = calculate_cost(
+                usage.get("input_tokens", 0),
+                usage.get("output_tokens", 0),
+                model
+            )
+            add_agent_log(
+                "USAGE_DECOMPOSE",
+                f"Task #{task_id} LLM usage: {total_t} tokens (${cost:.6f})",
+                task_id=task_id, project_id=task["project_id"]
+            )
     except urllib.error.URLError as e:
         add_agent_log(
             "DECOMPOSE_ERROR",

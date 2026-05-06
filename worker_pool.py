@@ -26,6 +26,7 @@ AGENT_EXECS = {
     "codex":    ["/usr/local/bin/codex"],
     "opencode": ["/usr/local/bin/opencode"],
     "aider":    ["/usr/local/bin/aider", "/home/administrator/.local/bin/aider"],
+    "hermes":   ["hermes", "/usr/local/bin/hermes"],  # routed via HermesBridge
 }
 
 
@@ -317,6 +318,28 @@ class WorkerPool:
             return
 
         agent_type = task.get("assigned_agent_type", "claude")
+
+        # ── Hermes bridge dispatch ────────────────────────────────────
+        if agent_type == "hermes":
+            from hermes_bridge import get_hermes_bridge
+            bridge = get_hermes_bridge()
+            try:
+                await bridge.dispatch(
+                    task_id=task_id,
+                    project_id=project_id,
+                    prompt=task.get("command") or task.get("title", ""),
+                    context=task,
+                )
+                # Hermes bridge manages its own polling; task stays running
+                add_agent_log("HERMES_START",
+                              f"Task #{task_id} → Hermes bridge dispatched",
+                              task_id=task_id, project_id=project_id)
+            except Exception as e:
+                update_task_status(task_id, "failed", f"Hermes bridge error: {e}")
+                add_agent_log("HERMES_ERROR",
+                              f"Task #{task_id} bridge dispatch failed: {e}",
+                              task_id=task_id, project_id=project_id)
+            return
 
         # Prevent double-dispatch
         if task_id in self._agents:

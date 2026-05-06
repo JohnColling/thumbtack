@@ -10,6 +10,7 @@ class AgentType(str, Enum):
     OPENCODE = "opencode"
     OPENCLAW = "openclaw"
     AIDER = "aider"
+    HERMES = "hermes"
     CUSTOM = "custom"
 
 
@@ -103,3 +104,30 @@ class DecomposeRequest(BaseModel):
 
 class TaskQueueRequest(BaseModel):
     task_text: str = Field(..., min_length=1)
+
+
+class TokenUsageRecord(BaseModel):
+    session_id: str = "default"
+    project_id: Optional[int] = None
+    task_id: Optional[int] = None
+    agent_id: Optional[int] = None
+    model: Optional[str] = None
+    request_count: int = 1
+    input_tokens: int = 0
+    output_tokens: int = 0
+    total_tokens: int = 0
+    cached_tokens: int = 0
+    reasoning_tokens: int = 0
+    cost: float = 0.0
+
+
+class TokenUsageResponse(BaseModel):
+    total_requests: int = 0
+    total_input: int = 0
+    total_output: int = 0
+    total_tokens: int = 0
+    total_cached: int = 0
+    total_reasoning: int = 0
+    total_cost: float = 0.0
+    model_count: int = 0
+    models: Optional[str] = None

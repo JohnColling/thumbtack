@@ -5,6 +5,61 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}ThumbTack{% endblock %}</title>
     <link rel="stylesheet" href="/static/style.css">
+    <style>
+        /* ── Token Usage Badge ──────────────────────────────── */
+        .token-usage-badge {
+            position: fixed;
+            top: 12px;
+            right: 12px;
+            z-index: 9999;
+            cursor: pointer;
+            user-select: none;
+        }
+        .token-usage-inner {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 20px;
+            background: rgba(20, 23, 30, 0.92);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border);
+            font-size: 12px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace;
+            color: var(--fg-dim);
+            transition: all 0.2s;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+        .token-usage-inner svg { color: var(--accent); flex-shrink: 0; }
+        .token-usage-inner:hover { background: var(--bg2); border-color: var(--accent); }
+        .token-usage-text { font-weight: 600; white-space: nowrap; }
+        .token-usage-tooltip {
+            display: none;
+            position: absolute;
+            top: calc(100% + 6px);
+            right: 0;
+            min-width: 160px;
+            padding: 10px 14px;
+            border-radius: 8px;
+            background: rgba(20, 23, 30, 0.95);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+            font-size: 11px;
+            color: var(--fg);
+        }
+        .token-usage-badge:hover .token-usage-tooltip { display: block; }
+        .token-usage-tooltip .tt-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 3px 0;
+        }
+        .token-usage-tooltip .tt-row span:first-child { color: var(--fg-dim); }
+        .token-usage-tooltip .tt-row span:last-child { font-weight: 600; color: var(--fg); }
+        /* ── Light mode overrides ───────────────────────────── */
+        html.light .token-usage-inner { background: rgba(255,255,255,0.92); }
+        html.light .token-usage-tooltip { background: rgba(255,255,255,0.95); }
+    </style>
     {% block head_extra %}{% endblock %}
 </head>
 <body>
@@ -86,6 +141,23 @@
     <!-- Toast container -->
     <div id="toastContainer" class="toast-container"></div>
 
+    <!-- Token Usage Badge -->
+    <div id="tokenUsageBadge" class="token-usage-badge" title="Click for details">
+        <div class="token-usage-inner">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+            </svg>
+            <span id="tokenUsageText" class="token-usage-text">Loading...</span>
+        </div>
+        <div id="tokenUsageTooltip" class="token-usage-tooltip">
+            <div class="tt-row"><span>Requests:</span><span id="tt-requests">0</span></div>
+            <div class="tt-row"><span>Input:</span><span id="tt-input">0</span></div>
+            <div class="tt-row"><span>Output:</span><span id="tt-output">0</span></div>
+            <div class="tt-row"><span>Cached:</span><span id="tt-cached">0</span></div>
+            <div class="tt-row"><span>Cost:</span><span id="tt-cost">$0.00</span></div>
+        </div>
+    </div>
+
     <!-- Modals -->
     {% block modals %}{% endblock %}
 
@@ -125,6 +197,81 @@
         }
         const saved = localStorage.getItem('thumbtack-theme');
         if (saved) applyTheme(saved);
+    })();
+
+    // ── Token Usage Badge ──────────────────────────────────────────────
+    (function() {
+        let tokenWs = null;
+        let reconnectTimer = null;
+        const sessionId = 'default';
+
+        function formatNumber(n) {
+            if (n === null || n === undefined || isNaN(n)) return '0';
+            if (n >= 1000000) return (n / 1_000_000).toFixed(2) + 'M';
+            if (n >= 1000) return (n / 1000).toFixed(1) + 'k';
+            return String(Math.floor(n));
+        }
+
+        function formatCost(c) {
+            if (c === null || c === undefined || isNaN(c)) return '$0.00';
+            if (c < 0.01) return '~$0.01';
+            return '$' + c.toFixed(2);
+        }
+
+        function updateTokenUI(data) {
+            const totalTokens = data.total_tokens || 0;
+            document.getElementById('tokenUsageText').textContent = formatNumber(totalTokens) + ' tokens';
+            document.getElementById('tt-requests').textContent = formatNumber(data.total_requests || 0);
+            document.getElementById('tt-input').textContent = formatNumber(data.total_input || 0);
+            document.getElementById('tt-output').textContent = formatNumber(data.total_output || 0);
+            document.getElementById('tt-cached').textContent = formatNumber(data.total_cached || 0);
+            document.getElementById('tt-cost').textContent = formatCost(data.total_cost || 0);
+        }
+
+        function connectTokenWs() {
+            if (tokenWs) return; // already connected
+            const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = proto + '//' + window.location.host + '/ws/tokens/' + sessionId;
+            tokenWs = new WebSocket(wsUrl);
+
+            tokenWs.onopen = () => {
+                console.log('[TokenWS] Connected');
+            };
+
+            tokenWs.onmessage = (ev) => {
+                try {
+                    const msg = JSON.parse(ev.data);
+                    if (msg.type === 'token_update') {
+                        updateTokenUI(msg.data);
+                    }
+                } catch (e) {}
+            };
+
+            tokenWs.onclose = () => {
+                tokenWs = null;
+                if (reconnectTimer) clearTimeout(reconnectTimer);
+                reconnectTimer = setTimeout(connectTokenWs, 3000);
+            };
+
+            tokenWs.onerror = (e) => {
+                console.error('[TokenWS] Error', e);
+                tokenWs = null;
+            };
+        }
+
+        // Initial fetch via REST as fallback
+        async function fetchInitialTokens() {
+            try {
+                const res = await fetch('/api/token-usage/session/' + sessionId);
+                if (!res.ok) return;
+                const j = await res.json();
+                if (j && j.stats) updateTokenUI(j.stats);
+            } catch (e) {}
+        }
+
+        // Start
+        fetchInitialTokens();
+        connectTokenWs();
     })();
     </script>
     {% block scripts %}{% endblock %}

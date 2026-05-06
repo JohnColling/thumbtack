@@ -414,10 +414,81 @@ function switchTab(tab){
 function escapeHtml(str){if(!str)return'';return str.replace(/[<>&"']/g,m=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[m]));}
 function escapeJs(str){if(!str)return'';return str.replace(/'/g,"\\'").replace(/"/g,'\\"');}
 
+// ─── Token Usage Tracker ──────────────────────────────────────────────────────
+let tokenWs = null;
+let tokenWsReconnect = null;
+
+function connectTokenWebSocket(sessionId='default'){
+    if(tokenWs && (tokenWs.readyState === WebSocket.OPEN || tokenWs.readyState === WebSocket.CONNECTING)) return;
+    const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    tokenWs = new WebSocket(`${proto}://${window.location.host}/ws/tokens/${sessionId}`);
+    const conn = document.getElementById('tokenConn');
+    const reqs = document.getElementById('twReqs');
+    const twIn = document.getElementById('twIn');
+    const twOut = document.getElementById('twOut');
+    const twTot = document.getElementById('twTot');
+    const twCost = document.getElementById('twCost');
+
+    tokenWs.onopen = () => {
+        if(conn) conn.classList.add('online');
+        if(reqs) reqs.textContent = '0';
+    };
+    tokenWs.onmessage = (ev) => {
+        try{
+            const msg = JSON.parse(ev.data);
+            if(msg.type !== 'token_update') return;
+            const s = msg.data || {};
+            if(twIn) twIn.textContent = (s.total_input ?? 0).toLocaleString();
+            if(twOut) twOut.textContent = (s.total_output ?? 0).toLocaleString();
+            if(twTot) twTot.textContent = (s.total_tokens ?? 0).toLocaleString();
+            if(reqs) reqs.textContent = (s.total_requests ?? 0).toLocaleString();
+            const costUsd = (s.total_cost ?? 0);
+            const costAud = costUsd * 1.54;
+            if(twCost) twCost.textContent = `$${costAud.toFixed(4)} AUD`;
+        }catch(e){}
+    };
+    tokenWs.onclose = () => {
+        if(conn) conn.classList.remove('online');
+        if(tokenWsReconnect) clearTimeout(tokenWsReconnect);
+        tokenWsReconnect = setTimeout(() => connectTokenWebSocket(sessionId), 5000);
+    };
+    tokenWs.onerror = () => {
+        if(conn) conn.classList.remove('online');
+    };
+}
+
+// ─── Hermes WebSocket ─────────────────────────────────────────────────────────
+let hermesWs = null;
+let hermesWsReconnect = null;
+
+function connectHermesWebSocket(){
+    if(hermesWs && (hermesWs.readyState === WebSocket.OPEN || hermesWs.readyState === WebSocket.CONNECTING)) return;
+    const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    hermesWs = new WebSocket(`${proto}://${window.location.host}/ws/hermes`);
+    hermesWs.onopen = () => {
+        hermesWs.send(JSON.stringify({type:'subscribe'}));
+    };
+    hermesWs.onmessage = (ev) => {
+        try{
+            const msg = JSON.parse(ev.data);
+            if(msg.type === 'task_progress' || msg.type === 'task_complete'){
+                // Could show a toast or banner in the UI
+                console.log('[Hermes]', msg);
+            }
+        }catch(e){}
+    };
+    hermesWs.onclose = () => {
+        if(hermesWsReconnect) clearTimeout(hermesWsReconnect);
+        hermesWsReconnect = setTimeout(connectHermesWebSocket, 5000);
+    };
+}
+
 // ─── Init ───
 window.addEventListener('DOMContentLoaded',()=>{
     loadProjects();
     document.addEventListener('keydown',e=>{if(e.key==='Escape'){hideModal('newProjectModal');hideModal('fileModal');}});
+    connectTokenWebSocket();
+    connectHermesWebSocket();
 });
 // ─── Git ───
 let gitState = {repo_exists:false,branch:'',is_dirty:false,modified:[],untracked:[],staged:[]};

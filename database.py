@@ -151,6 +151,32 @@ def init_db():
     )
     """)
 
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS token_usage (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id TEXT NOT NULL DEFAULT 'default',
+        project_id INTEGER,
+        task_id INTEGER,
+        agent_id INTEGER,
+        model TEXT,
+        request_count INTEGER DEFAULT 0,
+        input_tokens INTEGER DEFAULT 0,
+        output_tokens INTEGER DEFAULT 0,
+        total_tokens INTEGER DEFAULT 0,
+        cached_tokens INTEGER DEFAULT 0,
+        reasoning_tokens INTEGER DEFAULT 0,
+        cost REAL DEFAULT 0.0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (project_id) REFERENCES projects(id),
+        FOREIGN KEY (task_id) REFERENCES tasks(id),
+        FOREIGN KEY (agent_id) REFERENCES agents(id)
+    )
+    """)
+    try:
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_token_session ON token_usage (session_id)")
+    except sqlite3.OperationalError:
+        pass
+
     conn.commit()
     conn.close()
 
@@ -551,6 +577,103 @@ def get_orphaned_queued_tasks() -> List[Dict[str, Any]]:
         WHERE t.status = 'queued'
         AND (t.parent_task_id IS NULL OR parent.status = 'approved')
         ORDER BY t.priority, t.created_at
+        """
+    )
+    rows = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return rows
+
+
+# ── Token Usage ─────────────────────────────────────────────────────────
+def add_token_usage(
+    session_id: str = "default",
+    project_id: int = None,
+    task_id: int = None,
+    agent_id: int = None,
+    model: str = None,
+    request_count: int = 1,
+    input_tokens: int = 0,
+    output_tokens: int = 0,
+    total_tokens: int = 0,
+    cached_tokens: int = 0,
+    reasoning_tokens: int = 0,
+    cost: float = 0.0,
+) -> int:
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO token_usage (session_id, project_id, task_id, agent_id, model, request_count, input_tokens, output_tokens, total_tokens, cached_tokens, reasoning_tokens, cost) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (session_id, project_id, task_id, agent_id, model, request_count, input_tokens, output_tokens, total_tokens, cached_tokens, reasoning_tokens, cost)
+    )
+    usage_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return usage_id
+
+
+def get_session_token_usage(session_id: str = "default") -> Dict[str, Any]:
+    """Return aggregated token stats for a session."""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT SUM(request_count) as total_requests,
+               SUM(input_tokens) as total_input,
+               SUM(output_tokens) as total_output,
+               SUM(total_tokens) as total_tokens,
+               SUM(cached_tokens) as total_cached,
+               SUM(reasoning_tokens) as total_reasoning,
+               SUM(cost) as total_cost,
+               COUNT(DISTINCT model) as model_count,
+               GROUP_CONCAT(DISTINCT model) as models
+        FROM token_usage
+        WHERE session_id = ?
+        """,
+        (session_id,)
+    )
+    row = cursor.fetchone()
+    conn.close()
+    return dict(row) if row else {}
+
+
+def get_project_token_usage(project_id: int) -> Dict[str, Any]:
+    """Return aggregated token stats for a project."""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT SUM(request_count) as total_requests,
+               SUM(input_tokens) as total_input,
+               SUM(output_tokens) as total_output,
+               SUM(total_tokens) as total_tokens,
+               SUM(cached_tokens) as total_cached,
+               SUM(reasoning_tokens) as total_reasoning,
+               SUM(cost) as total_cost
+        FROM token_usage
+        WHERE project_id = ?
+        """,
+        (project_id,)
+    )
+    row = cursor.fetchone()
+    conn.close()
+    return dict(row) if row else {}
+
+
+def get_all_sessions_usage() -> List[Dict[str, Any]]:
+    """Return summary per session."""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT session_id,
+               SUM(input_tokens) as total_input,
+               SUM(output_tokens) as total_output,
+               SUM(total_tokens) as total_tokens,
+               SUM(cost) as total_cost,
+               MAX(created_at) as last_used
+        FROM token_usage
+        GROUP BY session_id
+        ORDER BY MAX(created_at) DESC
         """
     )
     rows = [dict(row) for row in cursor.fetchall()]
