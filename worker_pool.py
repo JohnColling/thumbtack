@@ -174,8 +174,13 @@ class TaskAgent:
                         line = await loop.run_in_executor(None, pipe.readline)
                         if line:
                             await self._emit(line.rstrip("\n"), is_err)
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        add_agent_log(
+                            "AGENT_ERROR",
+                            f"Task #{self.task_id} read error: {exc}",
+                            task_id=self.task_id, agent_id=self.agent_id,
+                            project_id=self.project_id
+                        )
                 await asyncio.sleep(0.05)
 
             # flush remaining
@@ -186,8 +191,13 @@ class TaskAgent:
                         if rem:
                             for ln in rem.splitlines():
                                 await self._emit(ln, pipe is self.proc.stderr)
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        add_agent_log(
+                            "AGENT_ERROR",
+                            f"Task #{self.task_id} flush error: {exc}",
+                            task_id=self.task_id, agent_id=self.agent_id,
+                            project_id=self.project_id
+                        )
 
             # finalize
             code = self.proc.returncode if self.proc else -1
@@ -228,18 +238,26 @@ class TaskAgent:
                 self._clients.remove(d)
 
         # persist to agent_output (legacy) and task_outputs (Phase 3)
-        conn = sqlite3.connect(str(DB_PATH))
-        c = conn.cursor()
-        c.execute(
-            "INSERT INTO agent_output (agent_id, output, is_stderr) VALUES (?,?,?)",
-            (self.agent_id, line, 1 if is_err else 0)
-        )
-        c.execute(
-            "INSERT INTO task_outputs (task_id, agent_id, output, is_stderr) VALUES (?,?,?,?)",
-            (self.task_id, self.agent_id, line, 1 if is_err else 0)
-        )
-        conn.commit()
-        conn.close()
+        try:
+            conn = sqlite3.connect(str(DB_PATH))
+            c = conn.cursor()
+            c.execute(
+                "INSERT INTO agent_output (agent_id, output, is_stderr) VALUES (?,?,?)",
+                (self.agent_id, line, 1 if is_err else 0)
+            )
+            c.execute(
+                "INSERT INTO task_outputs (task_id, agent_id, output, is_stderr) VALUES (?,?,?,?)",
+                (self.task_id, self.agent_id, line, 1 if is_err else 0)
+            )
+            conn.commit()
+            conn.close()
+        except Exception as exc:
+            add_agent_log(
+                "AGENT_ERROR",
+                f"Task #{self.task_id} _emit DB error: {exc}",
+                task_id=self.task_id, agent_id=self.agent_id,
+                project_id=self.project_id
+            )
 
     async def send_cmd(self, text: str):
         """Push a command line to the agent's stdin."""

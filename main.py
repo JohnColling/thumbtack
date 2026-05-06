@@ -196,10 +196,33 @@ def _is_fresh_restart():
     except Exception:
         return False
 
+def _reconcile_running_agents():
+    """Mark agents whose PID no longer exists as failed, and cascade to tasks."""
+    import os
+    conn = _db(); cur = conn.cursor()
+    cur.execute("SELECT id, pid FROM agents WHERE status='running' AND pid IS NOT NULL")
+    dead = []
+    for row in cur.fetchall():
+        try:
+            os.kill(row["pid"], 0)
+        except (ProcessLookupError, OSError):
+            dead.append(row["id"])
+    if dead:
+        placeholders = ",".join("?" * len(dead))
+        cur.execute(f"UPDATE agents SET status='failed' WHERE id IN ({placeholders})", dead)
+        cur.execute(
+            f"UPDATE tasks SET status='failed', result='Agent process no longer running' "
+            f"WHERE status='running' AND assigned_agent_id IN ({placeholders})", dead
+        )
+        conn.commit()
+    conn.close()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global HEARTBEAT_TASK, HEARTBEAT_STARTED
     init_db()
+    _reconcile_running_agents()
     is_restart = _is_fresh_restart()
     event_type = "RESTART" if is_restart else "SYSTEM"
     msg = (
@@ -485,6 +508,11 @@ async def auto_plan_task(tid: int, data: dict = None):
     if task["status"] not in ("pending", "planning"):
         raise HTTPException(400, f"Cannot plan task with status '{task['status']}'")
 
+    # Prevent duplicate subtasks if task was already planned
+    existing_subtasks = get_subtasks(tid)
+    if existing_subtasks:
+        raise HTTPException(400, f"Task #{tid} already has {len(existing_subtasks)} subtasks. Reject or delete them before re-planning.")
+
     custom_prompt = (data or {}).get("custom_prompt")
     result = await decompose_task(tid, custom_prompt=custom_prompt)
 
@@ -522,12 +550,15 @@ async def decompose_task_manual(tid: int, data: dict):
     """
     task = db_get_task(tid)
     if not task: raise HTTPException(404, "Task not found")
+    existing_subtasks = get_subtasks(tid)
+    if existing_subtasks:
+        raise HTTPException(400, f"Task #{tid} already has {len(existing_subtasks)} subtasks.")
     subtasks = data.get("subtasks", [])
     if not isinstance(subtasks, list) or not subtasks:
         raise HTTPException(400, "subtasks array required")
     # Update parent to planning
     update_task_status(tid, "planning")
-    # Create subtasks (status=queued, but they won't run until parent is approved)
+    # Create subtasks (status=planning_subtask — they won't run until parent is approved)
     ids = create_subtasks(tid, task["project_id"], subtasks)
     row = db_get_task(tid)
     row["subtasks"] = get_subtasks(tid)

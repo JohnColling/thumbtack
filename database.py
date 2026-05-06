@@ -364,14 +364,17 @@ def delete_task(task_id: int) -> bool:
 
 
 def create_subtasks(parent_task_id: int, project_id: int, subtasks: List[dict]) -> List[int]:
-    """Create subtask rows from a decomposition plan. Returns list of new task IDs."""
+    """Create subtask rows from a decomposition plan. Returns list of new task IDs.
+    Subtasks start with status='planning_subtask' so the heartbeat won't pick them up
+    until the parent is approved.
+    """
     ids = []
     conn = get_db()
     cursor = conn.cursor()
     for st in subtasks:
         cursor.execute(
             "INSERT INTO tasks (project_id, parent_task_id, title, description, priority, status) VALUES (?, ?, ?, ?, ?, ?)",
-            (project_id, parent_task_id, st["title"], st.get("description", ""), st.get("priority", 3), "queued")
+            (project_id, parent_task_id, st["title"], st.get("description", ""), st.get("priority", 3), "planning_subtask")
         )
         ids.append(cursor.lastrowid)
     conn.commit()
