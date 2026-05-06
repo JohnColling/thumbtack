@@ -12,16 +12,13 @@ let currentTheme = localStorage.getItem('thumbtack-theme') || 'dark';
 // ─── Theme ───
 function applyTheme(theme) {
     const html = document.documentElement;
-    if (theme === 'light') html.classList.add('light');
-    else html.classList.remove('light');
-    const toggle = document.getElementById('themeToggle');
-    if (toggle) toggle.checked = theme === 'light';
+    html.setAttribute('data-theme', theme);
     localStorage.setItem('thumbtack-theme', theme);
     currentTheme = theme;
 }
 function toggleTheme() {
-    const toggle = document.getElementById('themeToggle');
-    applyTheme(toggle?.checked ? 'light' : 'dark');
+    const current = document.documentElement.getAttribute('data-theme') || 'dark';
+    applyTheme(current === 'dark' ? 'light' : 'dark');
 }
 document.addEventListener('DOMContentLoaded', () => { applyTheme(currentTheme); });
 
@@ -976,3 +973,31 @@ closeNavDial = closeNavDial;
 handleMouseMove = handleMouseMove;
 window.autoPlanTask = autoPlanTask;
 selectDialOption = selectDialOption;
+
+// ─── Chart.js Loader ───────────────────────────────────────────────────────────
+function loadChartJS() {
+    return new Promise((resolve, reject) => {
+        if (window.Chart) { resolve(window.Chart); return; }
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js';
+        script.async = true;
+        script.onload = () => resolve(window.Chart);
+        script.onerror = () => reject(new Error('Failed to load Chart.js'));
+        document.head.appendChild(script);
+    });
+}
+
+// ─── Mobile Menu Toggle ────────────────────────────────────────────────────────
+function toggleMobileMenu(forceState) {
+    const sidebar = document.getElementById('sidebar');
+    const btn = document.getElementById('mobileMenuBtn');
+    if (!sidebar || !btn) return;
+    const isOpen = sidebar.classList.contains('open');
+    const shouldOpen = forceState !== undefined ? forceState : !isOpen;
+    sidebar.classList.toggle('open', shouldOpen);
+    btn.classList.toggle('active', shouldOpen);
+}
+
+// Expose utilities
+window.loadChartJS = loadChartJS;
+window.toggleMobileMenu = toggleMobileMenu;
