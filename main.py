@@ -949,6 +949,50 @@ async def terminals_page(request: Request):
     return templates.TemplateResponse(request, "terminals.html")
 
 
+# ─── Top Spenders ────────────────────────────────────────────────────────
+@app.get("/top-spenders", response_class=HTMLResponse)
+async def top_spenders_page(request: Request):
+    """Azure cost breakdown by resource group and service."""
+    subscription_id = os.getenv("AZURE_SUBSCRIPTION_ID", "").strip()
+    lookback_days = int(os.getenv("AZURE_LOOKBACK_DAYS", "30").strip() or "30")
+    top_n = int(os.getenv("AZURE_TOP_N", "50").strip() or "50")
+
+    by_resource_group = []
+    by_service = []
+    overall_total_rg = "$0.00"
+    overall_total_service = "$0.00"
+    error = None
+
+    if subscription_id:
+        result = await azure_client.get_top_spenders(
+            subscription_id, lookback_days=lookback_days, top_n=top_n
+        )
+        if isinstance(result, dict) and "error" in result:
+            error = result["error"]
+        else:
+            by_resource_group = result.get("by_resource_group", [])
+            by_service = result.get("by_service", [])
+            if by_resource_group:
+                overall_total_rg = f"${by_resource_group[0]['cost']:.2f}"
+            if by_service:
+                overall_total_service = f"${by_service[0]['cost']:.2f}"
+
+    return templates.TemplateResponse(
+        request,
+        "top_spenders.html",
+        {
+            "request": request,
+            "subscription_id": subscription_id,
+            "lookback_days": lookback_days,
+            "by_resource_group": by_resource_group,
+            "by_service": by_service,
+            "overall_total_rg": overall_total_rg,
+            "overall_total_service": overall_total_service,
+            "error": error,
+        },
+    )
+
+
 # ─── RI Coverage ─────────────────────────────────────────────────────────
 @app.get("/ri-coverage", response_class=HTMLResponse)
 async def ri_coverage_page(request: Request):

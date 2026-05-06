@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+
+{% block title %}Top Spenders — ThumbTack{% endblock %}
+
+{% block head_extra %}
+<style>
+    .spenders-summary { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+    .spenders-summary-card {
+        background: var(--bg1); border: 1px solid var(--border); border-radius: var(--radius-md);
+        padding: 14px 18px; min-width: 160px; flex: 1;
+    }
+    .spenders-summary-card .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--fg-dim); margin-bottom: 6px; }
+    .spenders-summary-card .value { font-size: 22px; font-weight: 700; }
+    .spenders-summary-card .note { font-size: 11px; color: var(--fg-dim); margin-top: 4px; }
+    .spenders-panel { background: var(--bg1); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; margin-bottom: 20px; }
+    .spenders-panel-header { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+    .spenders-panel-header h3 { font-size: 14px; font-weight: 600; }
+    .spenders-panel-body { max-height: 70vh; overflow-y: auto; padding: 0; }
+    .empty-cell { color: var(--fg-dim); font-style: italic; }
+    .col-numeric { text-align: right; white-space: nowrap; }
+    .col-numeric-header { text-align: right; }
+    .cost-value { font-weight: 600; font-family: var(--font-mono); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-view active">
+    <div class="page-view-header">
+        <h2>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="1" x2="12" y2="23"/>
+                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+            </svg>
+            Top Spenders
+        </h2>
+        <span class="text-xs text-dim">Last {{ lookback_days }} days &middot; subscription {{ subscription_id or "—" }}</span>
+    </div>
+    <div class="page-view-body">
+        {% if error %}
+            <div class="panel" style="border-left: 3px solid var(--accent4); margin-bottom: 20px;">
+                <div class="panel-header" style="color: var(--accent4);">Azure API Error</div>
+                <div style="padding: 12px 18px; font-size: 13px;">{{ error }}</div>
+            </div>
+        {% endif %}
+
+        {% if not by_resource_group and not by_service %}
+            <div class="empty-state" style="min-height: 300px;">
+                <h3>No cost data found</h3>
+                <p>Either there is no usage for this subscription in the look-back period, or the Azure credentials are not configured. Check your <code>.env</code> file for AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, and AZURE_SUBSCRIPTION_ID.</p>
+            </div>
+        {% else %}
+        <div class="spenders-summary">
+            <div class="spenders-summary-card">
+                <div class="label">Resource Groups</div>
+                <div class="value" style="color: var(--fg);">{{ by_resource_group|length }}</div>
+                <div class="note">With billable usage</div>
+            </div>
+            <div class="spenders-summary-card">
+                <div class="label">Top RG Cost</div>
+                <div class="value" style="color: var(--accent);">
+                    {{ overall_total_rg }}
+                </div>
+                <div class="note">Highest resource group</div>
+            </div>
+            <div class="spenders-summary-card">
+                <div class="label">Azure Services</div>
+                <div class="value" style="color: var(--fg);">{{ by_service|length }}</div>
+                <div class="note">With billable usage</div>
+            </div>
+            <div class="spenders-summary-card">
+                <div class="label">Top Service Cost</div>
+                <div class="value" style="color: var(--accent);">
+                    {{ overall_total_service }}
+                </div>
+                <div class="note">Highest service</div>
+            </div>
+        </div>
+
+        <div class="spenders-panel">
+            <div class="spenders-panel-header">
+                <h3>By Resource Group</h3>
+                <span class="text-xs text-dim">{{ by_resource_group|length }} group(s)</span>
+            </div>
+            <div class="spenders-panel-body">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Resource Group</th>
+                            <th class="col-numeric-header" style="text-align: right;">Total Cost (USD)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in by_resource_group %}
+                        <tr>
+                            <td style="width: 40px; color: var(--fg-dim); font-size: 12px;">{{ loop.index }}</td>
+                            <td>{{ item.name or "—" }}</td>
+                            <td class="col-numeric cost-value">${{ "%.2f"|format(item.cost) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="spenders-panel">
+            <div class="spenders-panel-header">
+                <h3>By Azure Service</h3>
+                <span class="text-xs text-dim">{{ by_service|length }} service(s)</span>
+            </div>
+            <div class="spenders-panel-body">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Service Name</th>
+                            <th class="col-numeric-header" style="text-align: right;">Total Cost (USD)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in by_service %}
+                        <tr>
+                            <td style="width: 40px; color: var(--fg-dim); font-size: 12px;">{{ loop.index }}</td>
+                            <td>{{ item.name or "—" }}</td>
+                            <td class="col-numeric cost-value">${{ "%.2f"|format(item.cost) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

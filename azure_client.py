@@ -9,10 +9,13 @@ from __future__ import annotations
 
 import asyncio
 import datetime
+import json
 import logging
 import os
 from pathlib import Path
 from typing import Any
+
+import requests
 
 from dotenv import load_dotenv
 from azure.identity import ClientSecretCredential
@@ -190,3 +193,67 @@ def _sync_get_virtual_machines(subscription_id: str) -> list[dict]:
 
 async def get_virtual_machines(subscription_id: str) -> list[dict]:
     return await _sync_get_virtual_machines(subscription_id)
+
+
+# ------------------------------------------------------------------------------
+# 3. Cost Management — Top Spenders
+# ------------------------------------------------------------------------------
+@_graceful("get_top_spenders")
+def _sync_get_top_spenders(
+    subscription_id: str, lookback_days: int = 30, top_n: int = 50
+) -> dict:
+    """Query Azure Cost Management API for top spenders by resource group and service."""
+    credential = _build_credential()
+    token = credential.get_token("https://management.azure.com/.default")
+    headers = {
+        "Authorization": f"Bearer {token.token}",
+        "Content-Type": "application/json",
+    }
+    end = datetime.date.today()
+    start = end - datetime.timedelta(days=lookback_days)
+    base_url = f"https://management.azure.com/subscriptions/{subscription_id}"
+
+    def _fetch(dimension_name: str) -> list[dict]:
+        body = {
+            "type": "Usage",
+            "timeframe": "Custom",
+            "timePeriod": {"from": start.isoformat(), "to": end.isoformat()},
+            "dataset": {
+                "granularity": "None",
+                "aggregation": {
+                    "totalCost": {"name": "PreTaxCost", "function": "Sum"}
+                },
+                "grouping": [{"type": "Dimension", "name": dimension_name}],
+                "sorting": [{"direction": "descending", "name": "PreTaxCost"}],
+            },
+        }
+        url = f"{base_url}/providers/Microsoft.CostManagement/query?api-version=2023-11-01"
+        rsp = requests.post(url, headers=headers, json=body, timeout=60)
+        rsp.raise_for_status()
+        data = rsp.json()
+        props = data.get("properties", {})
+        cols = [c.get("name") for c in props.get("columns", [])]
+        rows = props.get("rows", [])
+        name_idx = next((i for i, n in enumerate(cols) if n == dimension_name), 0)
+        cost_idx = next((i for i, n in enumerate(cols) if n == "PreTaxCost"), 1)
+        out: list[dict] = []
+        for row in rows:
+            try:
+                name = row[name_idx] or "Uncategorized"
+                cost_val = row[cost_idx]
+                cost = float(cost_val) if cost_val is not None else 0.0
+            except (IndexError, TypeError, ValueError):
+                continue
+            out.append({"name": name, "cost": round(cost, 2)})
+        return out
+
+    return {
+        "by_resource_group": _fetch("ResourceGroup")[:top_n],
+        "by_service": _fetch("MeterCategory")[:top_n],
+    }
+
+
+async def get_top_spenders(
+    subscription_id: str, *, lookback_days: int = 30, top_n: int = 50
+) -> dict:
+    return await _sync_get_top_spenders(subscription_id, lookback_days, top_n)
