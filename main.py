@@ -3,10 +3,17 @@ Thumbtack v1.1 — Multi-agent orchestration
 File browser · Agent comparison · Task queue
 """
 import os, asyncio, subprocess, sqlite3, json
+from pathlib import Path
 from typing import Dict, Optional, List
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from fastapi import FastAPI, Request, HTTPException, Query, WebSocket, WebSocketDisconnect
+from dotenv import load_dotenv
+
+# Load .env from the thumbtack directory
+DOTENV_PATH = Path(__file__).resolve().parent / ".env"
+if DOTENV_PATH.exists():
+    load_dotenv(DOTENV_PATH)
 
 TZ = ZoneInfo("Australia/Brisbane")
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -19,6 +26,7 @@ from database import init_db, add_agent_log, get_agent_logs, create_task as db_c
 
 from worker_pool import get_pool, start_pool, stop_pool
 from task_decomposer import decompose_task
+import azure_client
 
 # ── Paths ───────────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -939,6 +947,84 @@ async def tasks_page(request: Request):
 async def terminals_page(request: Request):
     """Terminal management dashboard (placeholder)."""
     return templates.TemplateResponse(request, "terminals.html")
+
+
+# ─── RI Coverage ─────────────────────────────────────────────────────────
+@app.get("/ri-coverage", response_class=HTMLResponse)
+async def ri_coverage_page(request: Request):
+    """Azure Reserved Instance ↔ Virtual Machine coverage report."""
+    subscription_id = os.getenv("AZURE_SUBSCRIPTION_ID", "").strip()
+    matches = []
+    stats = {"total": 0, "utilized": 0, "mismatched": 0, "unused": 0}
+    error = None
+
+    if subscription_id:
+        ri_result = await azure_client.get_reserved_instances(subscription_id)
+        if isinstance(ri_result, dict) and "error" in ri_result:
+            error = ri_result["error"]
+        else:
+            ris = ri_result or []
+            vm_result = await azure_client.get_virtual_machines(subscription_id)
+            vms = vm_result or [] if not (isinstance(vm_result, dict) and "error" in vm_result) else []
+            if isinstance(vm_result, dict) and "error" in vm_result:
+                error = vm_result["error"]
+
+            # Build lookup: (region, size) -> list of VMs
+            vm_by_region_size: dict[tuple[str, str], List[dict]] = {}
+            for vm in vms:
+                key = (vm.get("region", "").lower(), vm.get("size", "").lower())
+                vm_by_region_size.setdefault(key, []).append(vm)
+
+            # Build VM names by region only for mismatch detection
+            vms_by_region_only: dict[str, List[dict]] = {}
+            for vm in vms:
+                region = vm.get("region", "").lower()
+                vms_by_region_only.setdefault(region, []).append(vm)
+
+            for ri in ris:
+                region = (ri.get("region") or "").lower()
+                sku = (ri.get("sku") or "").lower()
+                qty = ri.get("quantity", 1)
+
+                direct_key = (region, sku)
+                matched_vms = []
+                if direct_key in vm_by_region_size:
+                    matched_vms = vm_by_region_size[direct_key][:qty]
+
+                if matched_vms and len(matched_vms) >= qty:
+                    status = "utilized"
+                elif matched_vms:
+                    status = "mismatched"
+                else:
+                    # Check if any VM shares region or SKU (partial mismatch)
+                    same_region = vms_by_region_only.get(region, [])
+                    status = "mismatched" if (same_region or any(vm.get("size", "").lower() == sku for vm in vms)) else "unused"
+
+                stats["total"] += 1
+                stats[status] += 1
+
+                matches.append({
+                    "name": ri.get("name", "Unnamed"),
+                    "sku": ri.get("sku", "—"),
+                    "region": ri.get("region", "—"),
+                    "quantity": qty,
+                    "matched_vms": matched_vms,
+                    "status": status,
+                    "expiry_date": ri.get("expiry_date", "—"),
+                    "reservation_id": ri.get("reservation_id", "—"),
+                })
+
+    return templates.TemplateResponse(
+        request,
+        "ri_coverage.html",
+        {
+            "request": request,
+            "subscription_id": subscription_id,
+            "matches": matches,
+            "stats": stats,
+            "error": error,
+        },
+    )
 
 
 @app.get("/{path:path}", response_class=HTMLResponse)

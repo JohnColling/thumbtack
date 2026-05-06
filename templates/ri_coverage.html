@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% block title %}RI Coverage — ThumbTack{% endblock %}
+
+{% block head_extra %}
+<style>
+    .ri-summary { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+    .ri-summary-card {
+        background: var(--bg1); border: 1px solid var(--border); border-radius: var(--radius-md);
+        padding: 14px 18px; min-width: 160px; flex: 1;
+    }
+    .ri-summary-card .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--fg-dim); margin-bottom: 6px; }
+    .ri-summary-card .value { font-size: 22px; font-weight: 700; }
+    .ri-summary-card .note { font-size: 11px; color: var(--fg-dim); margin-top: 4px; }
+    .ri-panel { background: var(--bg1); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
+    .ri-panel-header { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+    .ri-panel-header h3 { font-size: 14px; font-weight: 600; }
+    .ri-panel-body { max-height: 70vh; overflow-y: auto; padding: 0; }
+    .empty-cell { color: var(--fg-dim); font-style: italic; }
+    .col-vm-list { max-width: 300px; }
+    html[data-theme="light"] .status-utilized   { background: rgba(26,127,55,0.10); color: #1a7f37; }
+    html[data-theme="light"] .status-utilized::before   { background: #1a7f37; box-shadow: 0 0 6px #1a7f37; }
+    html[data-theme="light"] .status-mismatched { background: rgba(154,103,0,0.10); color: #9a6700; }
+    html[data-theme="light"] .status-mismatched::before { background: #9a6700; box-shadow: 0 0 6px #9a6700; }
+    html[data-theme="light"] .status-unused     { background: rgba(207,34,46,0.10); color: #cf222e; }
+    html[data-theme="light"] .status-unused::before     { background: #cf222e; box-shadow: 0 0 6px #cf222e; }
+    html[data-theme="light"] .row-utilized   { background: rgba(26,127,55,0.04); }
+    html[data-theme="light"] .row-mismatched { background: rgba(154,103,0,0.04); }
+    html[data-theme="light"] .row-unused     { background: rgba(207,34,46,0.04); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-view active">
+    <div class="page-view-header">
+        <h2>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            RI Coverage
+        </h2>
+        <span class="text-xs text-dim">Reserved Instance → VM matching for subscription {{ subscription_id or "—" }}</span>
+    </div>
+    <div class="page-view-body">
+        {% if error %}
+            <div class="panel" style="border-left: 3px solid var(--accent4); margin-bottom: 20px;">
+                <div class="panel-header" style="color: var(--accent4);">Azure API Error</div>
+                <div style="padding: 12px 18px; font-size: 13px;">{{ error }}</div>
+            </div>
+        {% endif %}
+
+        {% if not matches %}
+            <div class="empty-state" style="min-height: 300px;">
+                <h3>No Reserved Instances found</h3>
+                <p>Either there are no active RIs for this subscription, or the Azure credentials are not configured. Check your <code>.env</code> file for AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, and AZURE_SUBSCRIPTION_ID.</p>
+            </div>
+        {% else %}
+        <div class="ri-summary">
+            <div class="ri-summary-card">
+                <div class="label">Total RIs</div>
+                <div class="value" style="color: var(--fg);">{{ stats.total }}</div>
+                <div class="note">Active reservations</div>
+            </div>
+            <div class="ri-summary-card">
+                <div class="label">Fully Utilized</div>
+                <div class="value" style="color: #3fb950;">{{ stats.utilized }}</div>
+                <div class="note">RI count matches running VMs</div>
+            </div>
+            <div class="ri-summary-card">
+                <div class="label">Mismatched</div>
+                <div class="value" style="color: #d29922;">{{ stats.mismatched }}</div>
+                <div class="note">Running but region/SKU mismatch</div>
+            </div>
+            <div class="ri-summary-card">
+                <div class="label">Unused</div>
+                <div class="value" style="color: #f85149;">{{ stats.unused }}</div>
+                <div class="note">No matching VMs at all</div>
+            </div>
+        </div>
+
+        <div class="ri-panel">
+            <div class="ri-panel-header">
+                <h3>Reservation → VM Mapping</h3>
+                <span class="text-xs text-dim">{{ matches|length }} reservation(s)</span>
+            </div>
+            <div class="ri-panel-body">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Region</th>
+                            <th>SKU / Size</th>
+                            <th class="col-numeric">Count</th>
+                            <th>Matched VMs</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for m in matches %}
+                        <tr class="row-{{ m.status }}">
+                            <td>{{ m.region or "—" }}</td>
+                            <td>{{ m.sku or "—" }}</td>
+                            <td class="col-numeric">{{ m.quantity }}</td>
+                            <td class="col-vm-list">
+                                {% if m.matched_vms %}
+                                    <div class="vm-list">
+                                    {% for vm in m.matched_vms %}
+                                        <span class="vm-tag">{{ vm.name }}</span>
+                                    {% endfor %}
+                                    </div>
+                                {% else %}
+                                    <span class="empty-cell">None</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="status-badge status-{{ m.status }}">
+                                    {% if m.status == 'utilized' %}Utilized{% elif m.status == 'mismatched' %}Mismatched{% else %}Unused{% endif %}
+                                </span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
