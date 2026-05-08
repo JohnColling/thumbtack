@@ -23,7 +23,7 @@ from pydantic import BaseModel
 
 from contextlib import asynccontextmanager
 from database import (init_db, add_agent_log, get_agent_logs, create_task as db_create_task, list_tasks as db_list_tasks, get_task as db_get_task, update_task_status, create_subtasks, get_subtasks, get_pending_tasks, get_queued_tasks, get_running_tasks, delete_task as db_delete_task, get_task_outputs,
-    add_token_usage, get_session_token_usage, get_project_token_usage, get_all_sessions_usage)
+    add_token_usage, get_session_token_usage, get_project_token_usage, get_all_sessions_usage, record_webhook_delivery)
 from models import TokenUsageRecord, TokenUsageResponse
 
 from worker_pool import get_pool, start_pool, stop_pool
@@ -31,6 +31,7 @@ from task_decomposer import decompose_task
 import azure_client
 import hermes_bridge
 from usage_tracker import UsageStats
+from external_api import router as external_router
 
 # ── Paths ───────────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -250,6 +251,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Thumbtack", version="1.1.0", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR,"static")), name="static")
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR,"templates"))
+app.include_router(external_router, prefix="/api/external")
 
 # ── Pages ───────────────────────────────────────────────────────────────
 @app.get("/", response_class=HTMLResponse)
@@ -949,6 +951,88 @@ async def git_log(pid: int, limit: int = Query(50)):
                     "message": parts[5]
                 })
     return {"commits": commits}
+
+# ─── Webhook ─────────────────────────────────────────────────────────────
+from fastapi import Header
+
+WEBHOOK_SECRET = os.getenv("THUMBTACK_WEBHOOK_SECRET", "")
+
+class WebhookPayload(BaseModel):
+    project_id: int
+    action: str          # "create_task" | "dispatch_task"
+    title: Optional[str] = ""
+    description: Optional[str] = ""
+    priority: int = 3
+    auto_approve: bool = False
+    task_id: Optional[int] = None
+    command: Optional[str] = None
+
+@app.post("/api/webhook")
+async def receive_webhook(data: WebhookPayload, x_webhook_secret: str = Header(default="")):
+    if not WEBHOOK_SECRET:
+        raise HTTPException(500, "Webhook secret not configured on server")
+    if x_webhook_secret != WEBHOOK_SECRET:
+        raise HTTPException(401, "Invalid webhook secret")
+
+    proj = await get_project(data.project_id)
+    if not proj:
+        record_webhook_delivery(data.action, project_id=data.project_id, payload=data.json(), result="project_not_found")
+        raise HTTPException(404, "Project not found")
+
+    if data.action == "create_task":
+        title = data.title.strip()
+        if not title:
+            record_webhook_delivery("create_task", project_id=data.project_id, payload=data.json(), result="missing_title")
+            raise HTTPException(400, "title required")
+        tid = db_create_task(data.project_id, title, data.description or "", data.priority)
+        if data.auto_approve:
+            update_task_status(tid, "approved")
+            add_agent_log("WEBHOOK_TASK_CREATED", f"Webhook auto-created + approved task #{tid}: {title}", task_id=tid, project_id=data.project_id)
+        else:
+            add_agent_log("WEBHOOK_TASK_CREATED", f"Webhook auto-created task #{tid}: {title}", task_id=tid, project_id=data.project_id)
+        record_webhook_delivery("create_task", project_id=data.project_id, task_id=tid, payload=data.json(), result="created")
+        return {"status": "created", "task_id": tid, "approved": data.auto_approve}
+
+    elif data.action == "dispatch_task":
+        if not data.task_id:
+            record_webhook_delivery("dispatch_task", project_id=data.project_id, payload=data.json(), result="missing_task_id")
+            raise HTTPException(400, "task_id required for dispatch")
+        task = db_get_task(data.task_id)
+        if not task:
+            record_webhook_delivery("dispatch_task", project_id=data.project_id, task_id=data.task_id, payload=data.json(), result="task_not_found")
+            raise HTTPException(404, "Task not found")
+        if task["project_id"] != data.project_id:
+            record_webhook_delivery("dispatch_task", project_id=data.project_id, task_id=data.task_id, payload=data.json(), result="project_mismatch")
+            raise HTTPException(400, "Task does not belong to project")
+        if task["status"] == "queued":
+            pool = get_pool()
+            await pool.tick()
+            add_agent_log("WEBHOOK_TASK_DISPATCHED", f"Webhook dispatched task #{data.task_id}", task_id=data.task_id, project_id=data.project_id)
+            record_webhook_delivery("dispatch_task", project_id=data.project_id, task_id=data.task_id, payload=data.json(), result="dispatched")
+            return {"status": "dispatched", "task_id": data.task_id}
+        elif task["status"] == "pending":
+            update_task_status(data.task_id, "approved")
+            pool = get_pool()
+            await pool.tick()
+            add_agent_log("WEBHOOK_TASK_DISPATCHED", f"Webhook approved + dispatched task #{data.task_id}", task_id=data.task_id, project_id=data.project_id)
+            record_webhook_delivery("dispatch_task", project_id=data.project_id, task_id=data.task_id, payload=data.json(), result="approved_and_dispatched")
+            return {"status": "approved_and_dispatched", "task_id": data.task_id}
+        else:
+            record_webhook_delivery("dispatch_task", project_id=data.project_id, task_id=data.task_id, payload=data.json(), result=f"bad_status_{task['status']}")
+            raise HTTPException(400, f"Task status is '{task['status']}', cannot dispatch")
+
+    elif data.action == "spawn_agent":
+        if not data.command:
+            record_webhook_delivery("spawn_agent", project_id=data.project_id, payload=data.json(), result="missing_command")
+            raise HTTPException(400, "command required for spawn_agent")
+        agent_result = await spawn_agent(_AgentIn(project_id=data.project_id, agent_type="custom", command=data.command))
+        add_agent_log("WEBHOOK_AGENT_SPAWNED", f"Webhook spawned custom agent #{agent_result['id']}", agent_id=agent_result["id"], project_id=data.project_id)
+        record_webhook_delivery("spawn_agent", project_id=data.project_id, payload=data.json(), result=f"agent_{agent_result['id']}")
+        return {"status": "spawned", "agent_id": agent_result["id"]}
+
+    else:
+        record_webhook_delivery(data.action, project_id=data.project_id, payload=data.json(), result="unknown_action")
+        raise HTTPException(400, f"Unknown action: {data.action}")
 
 # ─── Health ────────────────────────────────────────────────────────────
 # ─── Orchestrator Status ─────────────────────────────────────────────

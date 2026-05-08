@@ -172,6 +172,23 @@ def init_db():
         FOREIGN KEY (agent_id) REFERENCES agents(id)
     )
     """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS webhook_deliveries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        source TEXT DEFAULT 'external',
+        action TEXT NOT NULL,
+        project_id INTEGER,
+        task_id INTEGER,
+        payload TEXT,
+        result TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+    try:
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_webhook_project ON webhook_deliveries (project_id)")
+    except sqlite3.OperationalError:
+        pass
     try:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_token_session ON token_usage (session_id)")
     except sqlite3.OperationalError:
@@ -679,3 +696,16 @@ def get_all_sessions_usage() -> List[Dict[str, Any]]:
     rows = [dict(row) for row in cursor.fetchall()]
     conn.close()
     return rows
+
+
+def record_webhook_delivery(action: str, project_id: int = None, task_id: int = None, payload: str = "", result: str = "") -> int:
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO webhook_deliveries (action, project_id, task_id, payload, result) VALUES (?, ?, ?, ?, ?)",
+        (action, project_id, task_id, payload, result)
+    )
+    wid = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return wid

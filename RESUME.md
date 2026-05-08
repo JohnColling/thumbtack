@@ -1,57 +1,39 @@
 # RESUME — Current Session State
 
-**Date:** 2026-05-07  ~11:15 PM AEST  
-**Session started:** Wednesday, May 06, 2026 10:59 PM
+**Date:** 2026-05-09  ~01:50 AM AEST
+**Session started:** Saturday, May 09, 2026 01:48 AM
 
 ---
 
-## Active Project: OpenMonoAgent.ai Investigation
+## Active Project: ThumbTack
 
-**Primary focus:** Deep inspection of OpenMono.ai (StartupHakk's C#/.NET local AI coding agent) + troubleshooting GPU issue on John's PC.
+**Primary focus:** External API implementation (webhook endpoint for outside services to trigger tasks/agents).
 
 ### What We Did This Session
-1. **Installed OpenMono.ai** on the server (CPU mode — no GPU on R2-D2). Repo at `~/openmono.ai`.
-   - Downloaded Qwen3.6-35B-A3B-UD-Q4_K_XL model (~21 GB)
-   - llama-server running in Docker on port 7474, healthy
-   - Agent Docker image built
-   - `openmono` CLI symlinked to `~/.local/bin/openmono`
-   - Verified: `curl -s http://127.0.0.1:7474/v1/chat/completions` works, returns valid chat responses
+1. **External API designed + implemented** in `external_api.py`:
+   - `POST /api/external/webhook` — universal entry point for outside services
+   - `POST /api/external/task` — create a new task
+   - `POST /api/external/dispatch` — dispatch a queued task to an agent
+   - `POST /api/external/agent/spawn` — spawn a new agent with a system prompt
+   - `POST /api/external/event` — emit an event into the event bus
+   - `GET /api/external/tasks` — list tasks with status filter
+   - `GET /api/external/status` — quick health check
+   - Protected by `X-Webhook-Secret` header (reads `THUMBTACK_WEBHOOK_SECRET` from `.env`)
+   - Audit trail: every call logged to `agent_log` table + `webhook_deliveries` table
+   - Committed: `6d3fc9b feat: external API — webhook endpoint + /api/external/* router`
 
-2. **Deep code inspection** completed. Full report saved to:
-   - `AI Memory/Projects/OpenMonoAgent.ai/Deep Inspection Report.md`
-   - Key findings: HttpClient leak, LSP flaws, naïve token counting, no graceful shutdown
-   - Architecture: .NET 10, 161 C# files, ~808 KB, Docker sandboxing, Roslyn + LSP tools
+2. **GitHub push failed** — `gh auth` token expired. Needs re-auth before next push.
 
-3. **John's PC (GPU) issue:** Agent hangs on "thinking". Screenshot mentioned but **not uploaded** yet.
-   - **Likely cause:** `nvidia-container-toolkit` not installed on PC → llama-server container can't see GPU → hangs
-   - **Next step:** John to run three diagnostic commands on his PC (see below) and upload the screenshot
+### Service Status
+- ThumbTack running on 10.0.0.53:3456
+- No uncommitted changes in repo
 
 ### Immediate Next Action
-**Awaiting diagnostics from John's PC.** The screenshot and these commands will reveal the root cause:
-```bash
-# 1. Server health
-curl -s http://localhost:7474/health
-
-# 2. Container logs
-docker logs docker-llama-server-1 2>&1 | tail -50
-
-# 3. Can Docker see GPU?
-docker run --rm --gpus all nvidia/cuda:12.0-base nvidia-smi
-```
-
----
-
-## ThumbTack Status
-- **No code changes** this session (git clean)
-- Service running on 10.0.0.53:3456
-- **Top open task:** Design external API so outside services/programs can trigger agents, tasks, or events inside the application (from Things to Do.md)
-
----
-
-## Quick Commands Reference
-- OpenMono server status: `docker ps | grep llama`
-- OpenMono logs: `docker logs docker-llama-server-1 2>&1 | tail -30`
-- OpenMono test API: `curl -s http://127.0.0.1:7474/v1/chat/completions -H "Content-Type: application/json" -d '{"model":"default","messages":[{"role":"user","content":"Say hello in exactly 3 words"}]}'`
+Top open tasks from Things to Do.md:
+- Token visibility gauge in ThumbTack UI
+- Git integration for ThumbTack (commit state changes to its own repo)
+- Token visibility / fuel gauge
+- End-to-end test of Phase 3 agent worker pool
 
 ---
 
