@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ThumbTack — Dashboard</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  body { font-family: 'DM Sans', -apple-system, sans-serif; background: #f7f8fa; color: #1a1d2e; }
+  .mono { font-family: 'JetBrains Mono', monospace; }
+  .card { background: #fff; border-radius: 16px; border: 1px solid #e8e9ec; box-shadow: 0 1px 3px rgba(0,0,0,0.03); }
+  .nav-link { color: #7a7d8f; font-weight: 500; font-size: 14px; padding: 8px 16px; border-radius: 12px; transition: all 0.2s; }
+  .nav-link:hover, .nav-link.active { background: #f0f0f3; color: #1a1d2e; }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+  .pill { border-radius: 999px; font-size: 11px; font-weight: 600; padding: 2px 10px; }
+  .btn-primary { background: #1a1d2e; color: #fff; border-radius: 12px; font-weight: 500; transition: opacity 0.2s; }
+  .btn-primary:hover { opacity: 0.85; }
+  .btn-ghost { background: transparent; color: #7a7d8f; border-radius: 12px; font-weight: 500; transition: all 0.2s; }
+  .btn-ghost:hover { background: #f0f0f3; color: #1a1d2e; }
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #d0d0d5; border-radius: 3px; }
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(26,29,46,0.3); backdrop-filter: blur(4px); align-items: center; justify-content: center; z-index: 50; }
+  .modal-overlay.active { display: flex; }
+  .modal-box { background: #fff; border-radius: 20px; padding: 28px; width: 90%; max-width: 400px; box-shadow: 0 20px 60px rgba(0,0,0,0.15); }
+  .toast { position: fixed; bottom: 24px; right: 24px; background: #1a1d2e; color: #fff; padding: 12px 18px; border-radius: 12px; font-size: 13px; transform: translateY(80px); opacity: 0; transition: all 0.35s cubic-bezier(0.16,1,0.3,1); z-index: 60; }
+  .toast.show { transform: translateY(0); opacity: 1; }
+  .dropdown { position: relative; }
+  .dropdown-menu { display: none; position: absolute; right: 0; top: calc(100% + 6px); background: #fff; border-radius: 14px; border: 1px solid #e8e9ec; box-shadow: 0 8px 30px rgba(0,0,0,0.08); min-width: 160px; padding: 4px; z-index: 40; }
+  .dropdown.open .dropdown-menu { display: block; }
+  .dropdown-item { padding: 8px 14px; border-radius: 10px; font-size: 13px; cursor: pointer; }
+  .dropdown-item:hover { background: #f7f8fa; }
+  table th { font-weight: 500; color: #7a7d8f; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .row-hover { transition: background 0.15s; }
+  .row-hover:hover { background: #fafafc; }
+</style>
+</head>
+<body class="h-screen overflow-hidden flex">
+  <!-- Sidebar -->
+  <aside class="w-60 flex-shrink-0 bg-white flex flex-col border-r border-[#e8e9ec]">
+    <div class="h-16 flex items-center px-6">
+      <span class="text-xl font-bold tracking-tight">ThumbTack</span>
+    </div>
+    <nav class="flex-1 px-3 py-2">
+      <a href="#" class="nav-link flex items-center gap-3 mb-1 active">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+        Overview
+      </a>
+      <a href="#" class="nav-link flex items-center gap-3 mb-1">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M12 4v16m8-8H4"/></svg>
+        Tasks
+      </a>
+      <a href="#" class="nav-link flex items-center gap-3 mb-1">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/></svg>
+        Agents
+      </a>
+      <a href="#" class="nav-link flex items-center gap-3 mb-1">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        Dispatch
+      </a>
+      <a href="#" class="nav-link flex items-center gap-3 mb-1">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
+        API
+      </a>
+    </nav>
+    <div class="p-4 m-4 bg-[#fafafc] rounded-2xl">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-full bg-[#1a1d2e] text-white flex items-center justify-center text-xs font-bold">JC</div>
+        <div>
+          <p class="text-sm font-medium">John Colling</p>
+          <p class="text-xs text-[#7a7d8f]">Administrator</p>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="flex-1 flex flex-col min-w-0 overflow-hidden">
+    <header class="h-16 flex items-center justify-between px-8 flex-shrink-0">
+      <div>
+        <p class="text-xs text-[#7a7d8f] mb-0.5">Dashboard</p>
+        <h1 class="text-2xl font-bold tracking-tight">Overview</h1>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="relative">
+          <input type="text" placeholder="Find anything..." class="w-56 bg-white border border-[#e8e9ec] rounded-xl py-2 pl-4 pr-9 text-sm focus:outline-none focus:border-[#1a1d2e] placeholder-[#b0b3c0] shadow-sm">
+          <svg class="w-4 h-4 absolute right-3 top-2.5 text-[#b0b3c0]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        </div>
+        <button onclick="showModal()" class="btn-primary px-4 py-2 text-sm">New Task</button>
+        <div class="dropdown" id="filterDropdown">
+          <button class="btn-ghost px-3 py-2 text-sm flex items-center gap-2 border border-[#e8e9ec]">
+            Filter
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          </button>
+          <div class="dropdown-menu">
+            <div class="dropdown-item" onclick="doFilter('all')">All Tasks</div>
+            <div class="dropdown-item" onclick="doFilter('pending')">Pending</div>
+            <div class="dropdown-item" onclick="doFilter('running')">Running</div>
+            <div class="dropdown-item" onclick="doFilter('done')">Completed</div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="flex-1 overflow-y-auto px-8 pb-8">
+      <!-- Stats row -->
+      <div class="grid grid-cols-4 gap-4 mb-6">
+        <div class="card p-5">
+          <p class="text-xs text-[#7a7d8f] mb-2">Active Agents</p>
+          <p class="text-3xl font-bold">8</p>
+          <div class="flex gap-3 mt-2">
+            <span class="text-xs text-[#22c55e]">3 idle</span>
+            <span class="text-xs text-[#7a7d8f]">5 busy</span>
+          </div>
+        </div>
+        <div class="card p-5">
+          <p class="text-xs text-[#7a7d8f] mb-2">Pending Tasks</p>
+          <p class="text-3xl font-bold text-[#f59e0b]">12</p>
+          <p class="text-xs text-[#ef4444] mt-2">+3 since yesterday</p>
+        </div>
+        <div class="card p-5">
+          <p class="text-xs text-[#7a7d8f] mb-2">Completed Today</p>
+          <p class="text-3xl font-bold text-[#22c55e]">47</p>
+          <p class="text-xs text-[#7a7d8f] mt-2">94% success rate</p>
+        </div>
+        <div class="card p-5">
+          <p class="text-xs text-[#7a7d8f] mb-2">Avg Response Time</p>
+          <p class="text-3xl font-bold">142<span class="text-sm font-normal text-[#7a7d8f] ml-1">ms</span></p>
+          <p class="text-xs text-[#22c55e] mt-2">-8ms vs last week</p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-5 gap-4">
+        <!-- Tasks -->
+        <div class="col-span-3 card p-5">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="font-bold text-sm">Task Queue</h2>
+            <button class="btn-ghost px-3 py-1.5 text-xs" onclick="refresh()">Refresh</button>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm" id="taskTable">
+              <thead>
+                <tr class="border-b border-[#e8e9ec]">
+                  <th class="pb-3 font-medium">ID</th>
+                  <th class="pb-3 font-medium">Task</th>
+                  <th class="pb-3 font-medium">Agent</th>
+                  <th class="pb-3 font-medium">Status</th>
+                  <th class="pb-3 font-medium text-right">Time</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="row-hover border-b border-[#f0f0f3]">
+                  <td class="py-3"><span class="mono text-xs text-[#b0b3c0]">#1042</span></td>
+                  <td class="py-3 font-medium">Scrape product prices</td>
+                  <td class="py-3 text-[#7a7d8f]">agent-scraper-01</td>
+                  <td class="py-3"><span class="pill bg-[#3b82f615] text-[#3b82f6]">Running</span></td>
+                  <td class="py-3 text-right text-[#b0b3c0] text-xs">2 min</td>
+                </tr>
+                <tr class="row-hover border-b border-[#f0f0f3]">
+                  <td class="py-3"><span class="mono text-xs text-[#b0b3c0]">#1041</span></td>
+                  <td class="py-3 font-medium">Summarize news feed</td>
+                  <td class="py-3 text-[#7a7d8f]">agent-llm-03</td>
+                  <td class="py-3"><span class="pill bg-[#f59e0b15] text-[#f59e0b]">Pending</span></td>
+                  <td class="py-3 text-right text-[#b0b3c0] text-xs">5 min</td>
+                </tr>
+                <tr class="row-hover border-b border-[#f0f0f3]">
+                  <td class="py-3"><span class="mono text-xs text-[#b0b3c0]">#1040</span></td>
+                  <td class="py-3 font-medium">Generate weekly report</td>
+                  <td class="py-3 text-[#7a7d8f]">agent-llm-03</td>
+                  <td class="py-3"><span class="pill bg-[#22c55e15] text-[#22c55e]">Done</span></td>
+                  <td class="py-3 text-right text-[#b0b3c0] text-xs">12 min</td>
+                </tr>
+                <tr class="row-hover border-b border-[#f0f0f3]">
+                  <td class="py-3"><span class="mono text-xs text-[#b0b3c0]">#1039</span></td>
+                  <td class="py-3 font-medium">Image classification batch</td>
+                  <td class="py-3 text-[#7a7d8f]">agent-vision-02</td>
+                  <td class="py-3"><span class="pill bg-[#3b82f615] text-[#3b82f6]">Running</span></td>
+                  <td class="py-3 text-right text-[#b0b3c0] text-xs">18 min</td>
+                </tr>
+                <tr class="row-hover">
+                  <td class="py-3"><span class="mono text-xs text-[#b0b3c0]">#1038</span></td>
+                  <td class="py-3 font-medium">Send notification emails</td>
+                  <td class="py-3 text-[#7a7d8f]">agent-worker-04</td>
+                  <td class="py-3"><span class="pill bg-[#ef444415] text-[#ef4444]">Failed</span></td>
+                  <td class="py-3 text-right text-[#b0b3c0] text-xs">21 min</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Right col -->
+        <div class="col-span-2 space-y-4">
+          <div class="card p-5">
+            <h2 class="font-bold text-sm mb-4">Agent Status</h2>
+            <div class="space-y-3">
+              <div class="flex items-center justify-between p-2 rounded-xl hover:bg-[#fafafc] transition-colors cursor-pointer">
+                <div class="flex items-center gap-3">
+                  <span class="status-dot bg-[#22c55e]"></span>
+                  <div>
+                    <p class="text-sm font-medium">agent-llm-03</p>
+                    <p class="text-xs text-[#b0b3c0]">GPT-4o mini</p>
+                  </div>
+                </div>
+                <span class="pill bg-[#22c55e15] text-[#22c55e]">Idle</span>
+              </div>
+              <div class="flex items-center justify-between p-2 rounded-xl hover:bg-[#fafafc] transition-colors cursor-pointer">
+                <div class="flex items-center gap-3">
+                  <span class="status-dot bg-[#f59e0b]"></span>
+                  <div>
+                    <p class="text-sm font-medium">agent-scraper-01</p>
+                    <p class="text-xs text-[#b0b3c0]">Playwright</p>
+                  </div>
+                </div>
+                <span class="pill bg-[#f59e0b15] text-[#f59e0b]">Busy</span>
+              </div>
+              <div class="flex items-center justify-between p-2 rounded-xl hover:bg-[#fafafc] transition-colors cursor-pointer">
+                <div class="flex items-center gap-3">
+                  <span class="status-dot bg-[#f59e0b]"></span>
+                  <div>
+                    <p class="text-sm font-medium">agent-vision-02</p>
+                    <p class="text-xs text-[#b0b3c0]">CLIP + YOLO</p>
+                  </div>
+                </div>
+                <span class="pill bg-[#f59e0b15] text-[#f59e0b]">Busy</span>
+              </div>
+              <div class="flex items-center justify-between p-2 rounded-xl hover:bg-[#fafafc] transition-colors cursor-pointer">
+                <div class="flex items-center gap-3">
+                  <span class="status-dot bg-[#22c55e]"></span>
+                  <div>
+                    <p class="text-sm font-medium">agent-worker-04</p>
+                    <p class="text-xs text-[#b0b3c0]">Background jobs</p>
+                  </div>
+                </div>
+                <span class="pill bg-[#ef444415] text-[#ef4444]">Error</span>
+              </div>
+              <div class="flex items-center justify-between p-2 rounded-xl hover:bg-[#fafafc] transition-colors cursor-pointer">
+                <div class="flex items-center gap-3">
+                  <span class="status-dot bg-[#ef4444]"></span>
+                  <div>
+                    <p class="text-sm font-medium">agent-llm-01</p>
+                    <p class="text-xs text-[#b0b3c0]">Claude 3.5</p>
+                  </div>
+                </div>
+                <span class="pill bg-[#e8e9ec] text-[#7a7d8f]">Offline</span>
+              </div>
+            </div>
+            <button class="w-full btn-ghost mt-3 py-2 text-sm border border-[#e8e9ec]" onclick="toast('Opening agent deploy...')">Deploy Agent</button>
+          </div>
+
+          <div class="card p-5">
+            <div class="flex items-center justify-between mb-4">
+              <h2 class="font-bold text-sm">Recent Webhooks</h2>
+              <button class="btn-ghost px-2 py-1 text-xs" onclick="toast('Log cleared')">Clear</button>
+            </div>
+            <div class="space-y-3">
+              <div class="flex items-center justify-between p-2 rounded-xl hover:bg-[#fafafc] transition-colors">
+                <div class="flex items-center gap-3">
+                  <span class="pill bg-[#1a1d2e] text-white mono">POST</span>
+                  <span class="text-sm">/api/external/webhook</span>
+                </div>
+                <div class="flex items-center gap-3">
+                  <span class="pill bg-[#22c55e15] text-[#22c55e]">200</span>
+                  <span class="text-xs text-[#b0b3c0]">1m</span>
+                </div>
+              </div>
+              <div class="flex items-center justify-between p-2 rounded-xl hover:bg-[#fafafc] transition-colors">
+                <div class="flex items-center gap-3">
+                  <span class="pill bg-[#1a1d2e] text-white mono">POST</span>
+                  <span class="text-sm">/api/external/webhook</span>
+                </div>
+                <div class="flex items-center gap-3">
+                  <span class="pill bg-[#22c55e15] text-[#22c55e]">200</span>
+                  <span class="text-xs text-[#b0b3c0]">4m</span>
+                </div>
+              </div>
+              <div class="flex items-center justify-between p-2 rounded-xl hover:bg-[#fafafc] transition-colors">
+                <div class="flex items-center gap-3">
+                  <span class="pill bg-[#7a7d8f] text-white mono">GET</span>
+                  <span class="text-sm">/api/health</span>
+                </div>
+                <div class="flex items-center gap-3">
+                  <span class="pill bg-[#22c55e15] text-[#22c55e]">200</span>
+                  <span class="text-xs text-[#b0b3c0]">5m</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Modal -->
+  <div class="modal-overlay" id="modal">
+    <div class="modal-box">
+      <h3 class="font-bold text-lg mb-4">New Task</h3>
+      <div class="space-y-3">
+        <div>
+          <label class="text-xs text-[#7a7d8f] block mb-1">Task Name</label>
+          <input type="text" class="w-full bg-[#f7f8fa] border border-[#e8e9ec] rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#1a1d2e]" placeholder="e.g. Summarize article">
+        </div>
+        <div>
+          <label class="text-xs text-[#7a7d8f] block mb-1">Agent</label>
+          <select class="w-full bg-[#f7f8fa] border border-[#e8e9ec] rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#1a1d2e]">
+            <option>agent-llm-03 (GPT-4o mini)</option>
+            <option>agent-scraper-01 (Playwright)</option>
+            <option>agent-vision-02 (CLIP + YOLO)</option>
+            <option>agent-worker-04 (Background)</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-xs text-[#7a7d8f] block mb-1">Priority</label>
+          <div class="flex gap-2">
+            <button class="flex-1 btn-ghost py-2 text-xs border border-[#e8e9ec]" onclick="pickPriority(this)">Low</button>
+            <button class="flex-1 btn-primary py-2 text-xs" onclick="pickPriority(this)">Normal</button>
+            <button class="flex-1 btn-ghost py-2 text-xs border border-[#e8e9ec]" onclick="pickPriority(this)">High</button>
+          </div>
+        </div>
+      </div>
+      <div class="flex gap-2 mt-5">
+        <button class="flex-1 btn-primary py-2.5 text-sm" onclick="makeTask()">Create Task</button>
+        <button class="flex-1 btn-ghost py-2.5 text-sm border border-[#e8e9ec]" onclick="hideModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const modal = document.getElementById('modal');
+    function showModal() { modal.classList.add('active'); }
+    function hideModal() { modal.classList.remove('active'); }
+    modal.addEventListener('click', e => { if (e.target === modal) hideModal(); });
+
+    const dd = document.getElementById('filterDropdown');
+    dd.querySelector('button').addEventListener('click', () => dd.classList.toggle('open'));
+    document.addEventListener('click', e => { if (!dd.contains(e.target)) dd.classList.remove('open'); });
+
+    function toast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2500);
+    }
+
+    function pickPriority(btn) {
+      btn.parentElement.querySelectorAll('button').forEach(b => {
+        b.classList.remove('btn-primary');
+        b.classList.add('btn-ghost');
+        if(!b.classList.contains('border')) b.classList.add('border','border-[#e8e9ec]');
+      });
+      btn.classList.remove('btn-ghost','border','border-[#e8e9ec]');
+      btn.classList.add('btn-primary');
+    }
+
+    function makeTask() {
+      hideModal();
+      toast('Task created');
+      const tbody = document.querySelector('#taskTable tbody');
+      const tr = document.createElement('tr');
+      tr.className = 'row-hover border-b border-[#f0f0f3]';
+      tr.innerHTML = '<td class="py-3"><span class="mono text-xs text-[#b0b3c0]">#1043</span></td><td class="py-3 font-medium">New task</td><td class="py-3 text-[#7a7d8f]">agent-llm-03</td><td class="py-3"><span class="pill bg-[#f59e0b15] text-[#f59e0b]">Pending</span></td><td class="py-3 text-right text-[#b0b3c0] text-xs">just now</td>';
+      tbody.insertBefore(tr, tbody.firstChild);
+    }
+
+    function doFilter(s) { toast('Filter: ' + s); }
+    function refresh() { toast('Refreshed'); }
+  </script>
+</body>
+</html>

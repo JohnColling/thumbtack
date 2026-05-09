@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ThumbTack — Command Center</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  body { font-family: 'Space Grotesk', -apple-system, sans-serif; background: #0a0a0f; color: #e2e2e8; }
+  .accent { color: #a78bfa; }
+  .accent-bg { background: #a78bfa; }
+  .accent-border { border-color: #a78bfa; }
+  .card { background: #14141b; border: 1px solid #22222c; border-radius: 12px; }
+  .nav-item { padding: 8px 14px; border-radius: 8px; font-size: 13px; font-weight: 500; color: #6b6b7b; transition: all 0.2s; }
+  .nav-item:hover, .nav-item.active { background: #1a1a24; color: #a78bfa; }
+  .status-bar { width: 3px; border-radius: 2px; }
+  .status-online { background: #22d3ee; }
+  .status-busy { background: #fbbf24; }
+  .status-offline { background: #f87171; }
+  .btn-accent { background: #a78bfa; color: #0a0a0f; font-weight: 600; border-radius: 8px; transition: opacity 0.2s; }
+  .btn-accent:hover { opacity: 0.85; }
+  .btn-ghost { background: transparent; color: #6b6b7b; border: 1px solid #22222c; border-radius: 8px; transition: all 0.2s; }
+  .btn-ghost:hover { border-color: #a78bfa; color: #a78bfa; }
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: #0a0a0f; }
+  ::-webkit-scrollbar-thumb { background: #22222c; border-radius: 3px; }
+  .modal { display: none; position: fixed; inset: 0; background: rgba(10,10,15,0.85); backdrop-filter: blur(6px); align-items: center; justify-content: center; z-index: 50; }
+  .modal.active { display: flex; }
+  .modal-card { background: #14141b; border: 1px solid #22222c; border-radius: 14px; padding: 24px; width: 90%; max-width: 420px; }
+  .toast { position: fixed; bottom: 20px; right: 20px; background: #14141b; border: 1px solid #a78bfa; color: #a78bfa; padding: 12px 18px; border-radius: 10px; font-size: 13px; transform: translateY(100px); opacity: 0; transition: all 0.3s ease; z-index: 60; }
+  .toast.show { transform: translateY(0); opacity: 1; }
+  .dropdown { position: relative; }
+  .dropdown-menu { display: none; position: absolute; right: 0; top: calc(100% + 6px); background: #14141b; border: 1px solid #22222c; border-radius: 10px; min-width: 150px; z-index: 40; padding: 4px; }
+  .dropdown.open .dropdown-menu { display: block; }
+  .dropdown-item { padding: 7px 12px; border-radius: 6px; font-size: 13px; cursor: pointer; }
+  .dropdown-item:hover { background: #1a1a24; color: #a78bfa; }
+  .kpi-ring { width: 48px; height: 48px; border-radius: 50%; border: 3px solid #22222c; border-top-color: #a78bfa; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; }
+  .split-line { background: linear-gradient(180deg, transparent, #22222c, transparent); width: 1px; }
+</style>
+</head>
+<body class="h-screen overflow-hidden flex">
+  <!-- Left: Sidebar -->
+  <aside class="w-56 flex-shrink-0 flex flex-col border-r border-[#22222c]">
+    <div class="h-14 flex items-center px-5">
+      <span class="text-lg font-bold accent">ThumbTack</span>
+      <span class="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-[#a78bfa20] accent">CC</span>
+    </div>
+    <nav class="flex-1 px-3 py-2">
+      <a href="#" class="nav-item flex items-center gap-3 mb-1 active">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
+        Command Center
+      </a>
+      <a href="#" class="nav-item flex items-center gap-3 mb-1">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+        Tasks
+      </a>
+      <a href="#" class="nav-item flex items-center gap-3 mb-1">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/></svg>
+        Agents
+      </a>
+      <a href="#" class="nav-item flex items-center gap-3 mb-1">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        Dispatch
+      </a>
+      <a href="#" class="nav-item flex items-center gap-3 mb-1">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
+        API
+      </a>
+    </nav>
+    <div class="p-4 border-t border-[#22222c]">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-full accent-bg flex items-center justify-center text-xs font-bold text-[#0a0a0f]">JC</div>
+        <div>
+          <p class="text-sm font-medium">John Colling</p>
+          <p class="text-xs text-[#6b6b7b]">Admin</p>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Middle: Task Console -->
+  <div class="flex-1 flex flex-col min-w-0 overflow-hidden border-r border-[#22222c]">
+    <header class="h-14 flex items-center justify-between px-5 flex-shrink-0 border-b border-[#22222c]">
+      <div class="flex items-center gap-3">
+        <h1 class="text-base font-semibold">Task Console</h1>
+        <span class="text-xs px-2 py-0.5 rounded bg-[#a78bfa20] accent">Live</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <button onclick="openModal()" class="btn-accent px-3 py-1.5 text-xs">+ New</button>
+        <div class="dropdown" id="filterDd">
+          <button class="btn-ghost px-2.5 py-1.5 text-xs flex items-center gap-1.5">
+            Filter
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          </button>
+          <div class="dropdown-menu">
+            <div class="dropdown-item" onclick="doFilter('all')">All</div>
+            <div class="dropdown-item" onclick="doFilter('pending')">Pending</div>
+            <div class="dropdown-item" onclick="doFilter('running')">Running</div>
+            <div class="dropdown-item" onclick="doFilter('done')">Done</div>
+          </div>
+        </div>
+      </div>
+    </header>
+    <div class="flex-1 overflow-y-auto p-4">
+      <!-- KPI mini row -->
+      <div class="flex gap-4 mb-4">
+        <div class="card p-3 flex-1 flex items-center gap-3">
+          <div class="kpi-ring">8</div>
+          <div>
+            <p class="text-xs text-[#6b6b7b]">Agents</p>
+            <p class="text-sm font-medium">3 idle / 5 busy</p>
+          </div>
+        </div>
+        <div class="card p-3 flex-1 flex items-center gap-3">
+          <div class="kpi-ring" style="border-top-color:#fbbf24;">12</div>
+          <div>
+            <p class="text-xs text-[#6b6b7b]">Pending</p>
+            <p class="text-sm font-medium">+3 today</p>
+          </div>
+        </div>
+      </div>
+      <!-- Task list -->
+      <div class="card overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm" id="taskTable">
+            <thead>
+              <tr class="text-left text-[#6b6b7b] border-b border-[#22222c] bg-[#0f0f14]">
+                <th class="py-2.5 px-4 font-medium text-xs">#</th>
+                <th class="py-2.5 px-4 font-medium text-xs">Task</th>
+                <th class="py-2.5 px-4 font-medium text-xs">Agent</th>
+                <th class="py-2.5 px-4 font-medium text-xs">Status</th>
+                <th class="py-2.5 px-4 font-medium text-xs text-right">Time</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="border-b border-[#22222c20] hover:bg-[#1a1a24] transition-colors">
+                <td class="py-3 px-4"><span class="text-xs text-[#6b6b7b]">1042</span></td>
+                <td class="py-3 px-4 font-medium">Scrape product prices</td>
+                <td class="py-3 px-4 text-[#6b6b7b]">scraper-01</td>
+                <td class="py-3 px-4"><span class="text-xs px-2 py-0.5 rounded bg-[#22d3ee20] text-[#22d3ee]">Running</span></td>
+                <td class="py-3 px-4 text-right text-[#6b6b7b] text-xs">2m</td>
+              </tr>
+              <tr class="border-b border-[#22222c20] hover:bg-[#1a1a24] transition-colors">
+                <td class="py-3 px-4"><span class="text-xs text-[#6b6b7b]">1041</span></td>
+                <td class="py-3 px-4 font-medium">Summarize news feed</td>
+                <td class="py-3 px-4 text-[#6b6b7b]">llm-03</td>
+                <td class="py-3 px-4"><span class="text-xs px-2 py-0.5 rounded bg-[#fbbf2420] text-[#fbbf24]">Pending</span></td>
+                <td class="py-3 px-4 text-right text-[#6b6b7b] text-xs">5m</td>
+              </tr>
+              <tr class="border-b border-[#22222c20] hover:bg-[#1a1a24] transition-colors">
+                <td class="py-3 px-4"><span class="text-xs text-[#6b6b7b]">1040</span></td>
+                <td class="py-3 px-4 font-medium">Generate weekly report</td>
+                <td class="py-3 px-4 text-[#6b6b7b]">llm-03</td>
+                <td class="py-3 px-4"><span class="text-xs px-2 py-0.5 rounded bg-[#22c55e20] text-[#22c55e]">Done</span></td>
+                <td class="py-3 px-4 text-right text-[#6b6b7b] text-xs">12m</td>
+              </tr>
+              <tr class="border-b border-[#22222c20] hover:bg-[#1a1a24] transition-colors">
+                <td class="py-3 px-4"><span class="text-xs text-[#6b6b7b]">1039</span></td>
+                <td class="py-3 px-4 font-medium">Image classification batch</td>
+                <td class="py-3 px-4 text-[#6b6b7b]">vision-02</td>
+                <td class="py-3 px-4"><span class="text-xs px-2 py-0.5 rounded bg-[#22d3ee20] text-[#22d3ee]">Running</span></td>
+                <td class="py-3 px-4 text-right text-[#6b6b7b] text-xs">18m</td>
+              </tr>
+              <tr class="hover:bg-[#1a1a24] transition-colors">
+                <td class="py-3 px-4"><span class="text-xs text-[#6b6b7b]">1038</span></td>
+                <td class="py-3 px-4 font-medium">Send notification emails</td>
+                <td class="py-3 px-4 text-[#6b6b7b]">worker-04</td>
+                <td class="py-3 px-4"><span class="text-xs px-2 py-0.5 rounded bg-[#f8717120] text-[#f87171]">Failed</span></td>
+                <td class="py-3 px-4 text-right text-[#6b6b7b] text-xs">21m</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: Status / Webhooks -->
+  <div class="w-72 flex-shrink-0 flex flex-col overflow-hidden">
+    <div class="h-14 flex items-center px-5 border-b border-[#22222c]">
+      <h2 class="text-sm font-semibold accent">Status Feed</h2>
+    </div>
+    <div class="flex-1 overflow-y-auto p-4">
+      <!-- Agent mini cards -->
+      <p class="text-xs text-[#6b6b7b] mb-2 font-medium">AGENTS</p>
+      <div class="space-y-2 mb-5">
+        <div class="card p-3 flex items-center gap-3 hover:border-[#a78bfa60] transition-colors cursor-pointer">
+          <div class="status-bar status-online h-8"></div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium truncate">llm-03</p>
+            <p class="text-xs text-[#6b6b7b]">GPT-4o mini — Idle</p>
+          </div>
+        </div>
+        <div class="card p-3 flex items-center gap-3 hover:border-[#fbbf2460] transition-colors cursor-pointer">
+          <div class="status-bar status-busy h-8"></div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium truncate">scraper-01</p>
+            <p class="text-xs text-[#6b6b7b]">Playwright — Busy</p>
+          </div>
+        </div>
+        <div class="card p-3 flex items-center gap-3 hover:border-[#fbbf2460] transition-colors cursor-pointer">
+          <div class="status-bar status-busy h-8"></div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium truncate">vision-02</p>
+            <p class="text-xs text-[#6b6b7b]">CLIP+YOLO — Busy</p>
+          </div>
+        </div>
+        <div class="card p-3 flex items-center gap-3 hover:border-[#f8717160] transition-colors cursor-pointer">
+          <div class="status-bar status-offline h-8"></div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium truncate">worker-04</p>
+            <p class="text-xs text-[#6b6b7b]">Background — Error</p>
+          </div>
+        </div>
+        <div class="card p-3 flex items-center gap-3 hover:border-[#f8717160] transition-colors cursor-pointer">
+          <div class="status-bar status-offline h-8"></div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium truncate">llm-01</p>
+            <p class="text-xs text-[#6b6b7b]">Claude 3.5 — Offline</p>
+          </div>
+        </div>
+      </div>
+
+      <p class="text-xs text-[#6b6b7b] mb-2 font-medium">WEBHOOKS</p>
+      <div class="space-y-2">
+        <div class="card p-3 hover:bg-[#1a1a24] transition-colors">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="text-[10px] px-1.5 py-0.5 rounded bg-[#a78bfa20] accent font-bold">POST</span>
+            <span class="text-xs text-[#6b6b7b]">1m ago</span>
+          </div>
+          <p class="text-xs truncate">/api/external/webhook</p>
+          <p class="text-xs text-[#22d3ee] mt-0.5">200 OK</p>
+        </div>
+        <div class="card p-3 hover:bg-[#1a1a24] transition-colors">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="text-[10px] px-1.5 py-0.5 rounded bg-[#a78bfa20] accent font-bold">POST</span>
+            <span class="text-xs text-[#6b6b7b]">4m ago</span>
+          </div>
+          <p class="text-xs truncate">/api/external/webhook</p>
+          <p class="text-xs text-[#22d3ee] mt-0.5">200 OK</p>
+        </div>
+        <div class="card p-3 hover:bg-[#1a1a24] transition-colors">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="text-[10px] px-1.5 py-0.5 rounded bg-[#6b6b7b20] text-[#6b6b7b] font-bold">GET</span>
+            <span class="text-xs text-[#6b6b7b]">5m ago</span>
+          </div>
+          <p class="text-xs truncate">/api/health</p>
+          <p class="text-xs text-[#22d3ee] mt-0.5">200 OK</p>
+        </div>
+      </div>
+    </div>
+    <div class="p-4 border-t border-[#22222c]">
+      <button class="w-full btn-accent py-2 text-xs" onclick="toast('Deploying agent...')">Deploy Agent</button>
+    </div>
+  </div>
+
+  <!-- Modal -->
+  <div class="modal" id="modal">
+    <div class="modal-card">
+      <h3 class="font-semibold mb-3">New Task</h3>
+      <div class="space-y-3">
+        <div>
+          <label class="text-xs text-[#6b6b7b] block mb-1">Name</label>
+          <input type="text" class="w-full bg-[#0a0a0f] border border-[#22222c] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#a78bfa]" placeholder="e.g. Summarize article">
+        </div>
+        <div>
+          <label class="text-xs text-[#6b6b7b] block mb-1">Agent</label>
+          <select class="w-full bg-[#0a0a0f] border border-[#22222c] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#a78bfa]">
+            <option>llm-03 (GPT-4o mini)</option>
+            <option>scraper-01 (Playwright)</option>
+            <option>vision-02 (CLIP + YOLO)</option>
+            <option>worker-04 (Background)</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-xs text-[#6b6b7b] block mb-1">Priority</label>
+          <div class="flex gap-2">
+            <button class="flex-1 btn-ghost py-1.5 text-xs" onclick="pickPri(this)">Low</button>
+            <button class="flex-1 btn-accent py-1.5 text-xs" onclick="pickPri(this)">Normal</button>
+            <button class="flex-1 btn-ghost py-1.5 text-xs" onclick="pickPri(this)">High</button>
+          </div>
+        </div>
+      </div>
+      <div class="flex gap-2 mt-4">
+        <button class="flex-1 btn-accent py-2 text-sm" onclick="makeTask()">Create</button>
+        <button class="flex-1 btn-ghost py-2 text-sm" onclick="closeModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const modal = document.getElementById('modal');
+    function openModal() { modal.classList.add('active'); }
+    function closeModal() { modal.classList.remove('active'); }
+    modal.addEventListener('click', e => { if(e.target === modal) closeModal(); });
+
+    const dd = document.getElementById('filterDd');
+    dd.querySelector('button').addEventListener('click', () => dd.classList.toggle('open'));
+    document.addEventListener('click', e => { if(!dd.contains(e.target)) dd.classList.remove('open'); });
+
+    function toast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2500);
+    }
+
+    function pickPri(btn) {
+      btn.parentElement.querySelectorAll('button').forEach(b => {
+        b.classList.remove('btn-accent');
+        b.classList.add('btn-ghost');
+      });
+      btn.classList.remove('btn-ghost');
+      btn.classList.add('btn-accent');
+    }
+
+    function makeTask() {
+      closeModal();
+      toast('Task created');
+      const tbody = document.querySelector('#taskTable tbody');
+      const tr = document.createElement('tr');
+      tr.className = 'border-b border-[#22222c20] hover:bg-[#1a1a24] transition-colors';
+      tr.innerHTML = '<td class="py-3 px-4"><span class="text-xs text-[#6b6b7b]">1043</span></td><td class="py-3 px-4 font-medium">New task</td><td class="py-3 px-4 text-[#6b6b7b]">llm-03</td><td class="py-3 px-4"><span class="text-xs px-2 py-0.5 rounded bg-[#fbbf2420] text-[#fbbf24]">Pending</span></td><td class="py-3 px-4 text-right text-[#6b6b7b] text-xs">just now</td>';
+      tbody.insertBefore(tr, tbody.firstChild);
+    }
+
+    function doFilter(s) { toast('Filter: ' + s); dd.classList.remove('open'); }
+  </script>
+</body>
+</html>

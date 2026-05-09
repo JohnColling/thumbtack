@@ -8,12 +8,12 @@
         :root {
             --bg0: #0d1117; --bg1: #161b22; --bg2: #1c2128; --bg3: #21262d;
             --border: #30363d; --fg: #c9d1d9; --fg-dim: #8b949e;
-            --accent: #ff7f00; --accent2: #3fb950; --accent3: #f0883e; --accent4: #f85149;
+            --accent: #00d4ff; --accent2: #3fb950; --accent3: #f0883e; --accent4: #f85149;
         }
         html.light {
             --bg0: #ffffff; --bg1: #f6f8fa; --bg2: #eaeef2; --bg3: #d0d7de;
             --border: #d8dee4; --fg: #24292f; --fg-dim: #656d76;
-            --accent: #e56900; --accent2: #1a7f37; --accent3: #9a6700; --accent4: #cf222e;
+            --accent: #0099cc; --accent2: #1a7f37; --accent3: #007f9a; --accent4: #cf222e;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -34,7 +34,7 @@
         }
         @keyframes neon-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
         .sidebar-header { padding: 20px 18px 12px; border-bottom: 1px solid var(--border); display: flex; align-items: flex-start; gap: 10px; }
-        .sidebar-header .logo { width: 36px; height: 36px; border-radius: 9px; display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; background: radial-gradient(ellipse 75% 70% at 50% 85%, #ff5500 0%, #ff7a00 40%, #ffa940 100%); box-shadow: 0 2px 6px rgba(0,0,0,0.35), inset -1px -1px 2px rgba(0,0,0,0.3), inset 1px 1px 2px rgba(255,255,255,0.6); }
+        .sidebar-header .logo { width: 36px; height: 36px; border-radius: 9px; display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; background: radial-gradient(ellipse 75% 70% at 50% 85%, #0088ff 0%, #00bfff 40%, #00e5ff 100%); box-shadow: 0 2px 6px rgba(0,0,0,0.35), inset -1px -1px 2px rgba(0,0,0,0.3), inset 1px 1px 2px rgba(255,255,255,0.6); }
         .sidebar-header .logo svg { width: 22px; height: 22px; position: relative; z-index: 1; filter: drop-shadow(0 1px 1px rgba(0,0,0,0.2)); }
         .sidebar-header h1 { font-size: 15px; font-weight: 600; }
         .sidebar-header .subtitle { font-size: 11px; color: var(--fg-dim); }

@@ -20,12 +20,12 @@
     .col-vm-list { max-width: 300px; }
     html[data-theme="light"] .status-utilized   { background: rgba(26,127,55,0.10); color: #1a7f37; }
     html[data-theme="light"] .status-utilized::before   { background: #1a7f37; box-shadow: 0 0 6px #1a7f37; }
-    html[data-theme="light"] .status-mismatched { background: rgba(154,103,0,0.10); color: #9a6700; }
-    html[data-theme="light"] .status-mismatched::before { background: #9a6700; box-shadow: 0 0 6px #9a6700; }
+    html[data-theme="light"] .status-mismatched { background: rgba(0,153,204,0.10); color: #0099cc; }
+    html[data-theme="light"] .status-mismatched::before { background: #0099cc; box-shadow: 0 0 6px #0099cc; }
     html[data-theme="light"] .status-unused     { background: rgba(207,34,46,0.10); color: #cf222e; }
     html[data-theme="light"] .status-unused::before     { background: #cf222e; box-shadow: 0 0 6px #cf222e; }
     html[data-theme="light"] .row-utilized   { background: rgba(26,127,55,0.04); }
-    html[data-theme="light"] .row-mismatched { background: rgba(154,103,0,0.04); }
+    html[data-theme="light"] .row-mismatched { background: rgba(0,153,204,0.04); }
     html[data-theme="light"] .row-unused     { background: rgba(207,34,46,0.04); }
 </style>
 {% endblock %}
@@ -66,7 +66,7 @@
             </div>
             <div class="ri-summary-card">
                 <div class="label">Mismatched</div>
-                <div class="value" style="color: #d29922;">{{ stats.mismatched }}</div>
+                <div class="value" style="color: #22d2bb;">{{ stats.mismatched }}</div>
                 <div class="note">Running but region/SKU mismatch</div>
             </div>
             <div class="ri-summary-card">
