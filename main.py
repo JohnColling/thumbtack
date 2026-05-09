@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Dict, Optional, List
 from datetime import datetime
 from zoneinfo import ZoneInfo
-from fastapi import FastAPI, Request, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, HTTPException, Query, WebSocket, WebSocketDisconnect, Body
 from dotenv import load_dotenv
 
 # Load .env from the thumbtack directory
@@ -445,7 +445,7 @@ async def read_file(pid: int, filepath: str=Query(...)):
 
 # ─── Comparison ──────────────────────────────────────────────────────────
 @app.post("/api/comparison")
-async def spawn_comparison(data: dict):
+async def spawn_comparison(data: dict = Body(...)):
     pid = data.get("project_id"); left_type = data.get("left_type","claude"); right_type = data.get("right_type","codex")
     command = data.get("command","")
     proj = await get_project(pid)
@@ -468,7 +468,7 @@ async def get_task(tid: int):
     return row
 
 @app.post("/api/projects/{pid}/tasks")
-async def create_task(pid: int, data: dict):
+async def create_task(pid: int, data: dict = Body(...)):
     title = data.get("title", "").strip()
     if not title: raise HTTPException(400, "title required")
     description = data.get("description", "").strip()
@@ -483,7 +483,7 @@ async def create_task(pid: int, data: dict):
     return row
 
 @app.patch("/api/tasks/{tid}")
-async def update_task(tid: int, data: dict):
+async def update_task(tid: int, data: dict = Body(...)):
     """Generic update: status, title, description, priority."""
     task = db_get_task(tid)
     if not task: raise HTTPException(404, "Task not found")
@@ -550,7 +550,7 @@ async def auto_plan_task(tid: int, data: dict = None):
     return row
 
 @app.post("/api/tasks/{tid}/decompose")
-async def decompose_task_manual(tid: int, data: dict):
+async def decompose_task_manual(tid: int, data: dict = Body(...)):
     """Human or orchestrator proposes subtasks. Task goes pending→planning.
     Body: {"subtasks": [{"title": "...", "description": "...", "priority": 3}, ...]}
     """
@@ -613,7 +613,7 @@ async def delete_task(tid: int):
 
 # Legacy task_text endpoint (redirects to new create)
 @app.post("/api/projects/{pid}/tasks/legacy")
-async def add_task_legacy(pid: int, data: dict):
+async def add_task_legacy(pid: int, data: dict = Body(...)):
     text = data.get("task_text", "").strip()
     if not text: raise HTTPException(400, "task_text required")
     tid = db_create_task(pid, text, "", 3)
@@ -772,7 +772,7 @@ async def git_init(pid: int):
     return {"status": "initialized"}
 
 @app.post("/api/projects/{pid}/git/commit")
-async def git_commit(pid: int, data: dict):
+async def git_commit(pid: int, data: dict = Body(...)):
     proj = await get_project(pid)
     path = proj["path"]
     if not os.path.isdir(os.path.join(path, ".git")):
@@ -805,7 +805,7 @@ async def get_github_config():
     }
 
 @app.post("/api/github/config")
-async def post_github_config(data: dict):
+async def post_github_config(data: dict = Body(...)):
     username = data.get("username","").strip()
     email    = data.get("email","").strip()
     token    = data.get("token")   # None if omitted — preserve existing
@@ -820,7 +820,7 @@ async def clear_github_config():
     return {"status": "cleared"}
 
 @app.post("/api/projects/{pid}/git/remote")
-async def add_git_remote(pid: int, data: dict):
+async def add_git_remote(pid: int, data: dict = Body(...)):
     proj = await get_project(pid)
     path = proj["path"]
     if not os.path.isdir(os.path.join(path, ".git")):
