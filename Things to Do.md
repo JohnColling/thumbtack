@@ -1,3 +1,4 @@
+## Last updated: 2026-05-09 13:14 AEST
 # Things to Do
 
 > Dump anything here — ideas, fixes, tasks, reminders. I'll work through them session by session.
